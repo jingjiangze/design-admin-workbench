@@ -39,8 +39,11 @@ research/ 取证原始记录（脱敏后的 JSON 样本、截图说明、请求�
 ## 同步约定
 
 - 一个逻辑任务一个 commit（`docs:` / `chore:` 前缀），**每个 commit 实时推送**到 `origin/main`
-- 推送统一走 `scripts/sync-push.sh`（内置 TLS 吊销修复 + 静默凭据 + 失败重试 ×3）
-- 已安装 `post-commit` 钩子：每次 commit 后自动推送，无需单独执行推送命令；临时跳过用 `NO_AUTO_PUSH=1 git commit ...`
+- **GitHub 唯一通道 = 本地令牌**（Windows 凭据管理器中 GCM OAuth 令牌，repo 全权限、永不过期、零点击）：
+  - git 推送统一走 `scripts/sync-push.sh`（内置 TLS 吊销修复 + 静默凭据 + 失败重试 ×3）
+  - API 查询统一走 `scripts/gh-api.sh`（如查远端 commit、读文件），令牌只在进程内流转不落盘
+  - GitHub 连接器（CodeBuddy-Connector）已弃用：其令牌无本私有仓授权且反复要求重连授权
+- 已安装 `post-commit` 钩子：手动 commit 后自动推送；临时跳过用 `NO_AUTO_PUSH=1 git commit ...`
 - 推送日志：`.git/push.log`
 - 不 force push、不 squash、不改写历史
 - 新增前端代码在本阶段默认禁止（Phase 0 结束前不开始大规模 Vue 开发）
