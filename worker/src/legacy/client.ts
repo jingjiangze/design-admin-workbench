@@ -3,7 +3,8 @@
  *
  * 纪律（长文 §二十四/§二十五）：
  * - 只有白名单函数可调用 legacyGet/legacyPost，每个函数对应一个旧 endpoint；
- * - 第一阶段仅允许只读：getOrderList / needsDetail2 / reminderMessage / childLogin（登录）；
+ * - 第一阶段仅允许只读：getOrderList / needsDetail2 / getReminderMessageNew / childLogin（登录）
+ *   （[VERIFIED 2026-09-20] reminderMessage.do 是 HTML 页面，数据 API 是 getReminderMessageNew.do）；
  * - batchTakeover/updateRemark/updateIsRead/insertAbnormalOrder/updateRepulseData 等写接口禁止接入；
  * - 禁止任何 /api/proxy?url= 形态的开放代理。
  *

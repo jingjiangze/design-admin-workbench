@@ -17,7 +17,7 @@
 | 语音通知记录 | /chsjs/yuyin/myCallInfo.do | 订单管理→语音通知记录 | 催单语音外呼记录（条数/花费） | myYuyinList | [VERIFIED] |
 | 不良数据 | /chsjs/child/badData.do | 我的数据→不良数据 | 不良率统计（按日/按段）+ 导出 | getBadDataByDate1、queryBadDataByTimes、getBadDataByDateExport | [VERIFIED] |
 | 订单消息 | /chsjs/child/myMessage.do | 消息通知→订单消息 | 四类通知：接单/打回/不良/超时 + 已读 | getMyOrderMessage、get{Accept,Back,Bad,Outtime}Notice、updateIsRead | [VERIFIED] |
-| 催单消息 | /chsjs/child/reminderMessage.do | 消息通知（Badge 计数） | 催单收件箱：列表/详情/已读/备注（**只读，无发送**） | getReminderMessageNew、reminderByIdNew、update*ReminderNew、updateRemark | [VERIFIED] |
+| 催单消息 | /chsjs/child/reminderMessage.do | 消息通知（Badge 计数） | 催单收件箱：列表/详情/已读/备注（**只读，无发送**） | getReminderMessageNew、reminderByIdNew、update*ReminderNew、updateRemark | [VERIFIED]（2026-09-20 CF-REAL-03 补充实测：页面本身是 JSP HTML；列表数据走 GET getReminderMessageNew.do?page=&limit= → {result, data:{pageInfo:{list,total}}}；行字段动态——id/memberid/isread/sendtime/needsid/noticedetail/supplyman/ordernum/state/subname/times/shop 恒在，readtime/timeout/ageing 仅已接收/已处理行出现；实测 total=164） |
 | 我的信息 | /chsjs/child/myInfo.do | 头像区 | 个人资料 + 微信二维码上传 | uploadWechatQrCode | [VERIFIED] |
 | 我的收入 | /chsjs/child/toMemberSubIncome.do | 首页"总收入" | 收入/分润（36KB，页面无显式 AJAX，疑似 SSR 渲染） | 待验证 | [VERIFIED] 页面存在 |
 

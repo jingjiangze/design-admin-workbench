@@ -35,7 +35,7 @@
 | `/api/auth/me` | GET | — | 会话身份 |
 | `/api/orders` | GET | `getOrderList.do`（Worker 侧 POST 表单=查询语义） | **强制 sort=0&sorttype=1** |
 | `/api/orders/detail` | GET | `needsDetail2.do?needsid=` / `needsDetail.do?applyid=` | HTML 透传不解析 |
-| `/api/reminders` | GET | `reminderMessage.do` | 收件箱只读 |
+| `/api/reminders` | GET | `getReminderMessageNew.do?page=&limit=`（GET 分页 JSON） | 收件箱只读；**[VERIFIED 2026-09-20]** `reminderMessage.do` 是 HTML 页面非 API，禁作数据源；响应 `{result, data:{pageInfo:{list,total,…}}}` → Worker 适配 `{list,total,pageNum,pageSize}` |
 | `/api/income/summary` `/api/income/orders` | GET | `getOrderList.do` | 语义别名，前端聚合 |
 | `/api/pricing/rules` (+`/:id`) | GET/POST/PUT/DELETE | — | D1（新系统自有数据） |
 

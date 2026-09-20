@@ -15,7 +15,7 @@ import { handlePricingRules } from "./pricing/routes";
 import { requireSession, jsonOk, jsonError, type AuthContext } from "./security/auth";
 import { parseOrderListQuery, fetchLegacyOrderList, fetchMockOrderList } from "./legacy/order";
 import { parseDetailQuery, fetchLegacyOrderDetail, fetchMockOrderDetail } from "./legacy/detail";
-import { parseRemindQuery, fetchLegacyRemindList, fetchMockRemindList } from "./legacy/remind";
+import { parseRemindQuery, fetchLegacyRemindList, fetchMockRemindList, normalizeRemindInbox } from "./legacy/remind";
 import { LegacyError } from "./legacy/client";
 
 export default {
@@ -100,11 +100,14 @@ export default {
       }
 
       // ── 催稿收件箱（GET /api/reminders）──
+      // [VERIFIED 2026-09-20] 上游 = getReminderMessageNew.do（GET 分页 JSON）；
+      // reminderMessage.do 是 HTML 页面，不能作为数据源。此处做 pageInfo → {list,total} 适配。
       if (path === "/api/reminders" && request.method === "GET") {
         const query = parseRemindQuery(url);
         if (isLegacyEnabled(env)) {
           const cookie = await legacyCookieOf(env, ctx);
-          return jsonOk(await fetchLegacyRemindList(env, cookie, query));
+          const raw = await fetchLegacyRemindList(env, cookie, query);
+          return jsonOk(normalizeRemindInbox(raw, query));
         }
         return jsonOk(await fetchMockRemindList(query));
       }
