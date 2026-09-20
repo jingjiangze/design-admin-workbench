@@ -367,12 +367,7 @@ html.dark .el-input__wrapper:hover {
 }
 
 html.dark .el-skeleton__item {
-  background: linear-gradient(
-    90deg,
-    #1e1e21 25%,
-    #26262a 37%,
-    #1e1e21 63%
-  );
+  background: linear-gradient(90deg, #1e1e21 25%, #26262a 37%, #1e1e21 63%);
 }
 
 html.dark ::-webkit-scrollbar-thumb {

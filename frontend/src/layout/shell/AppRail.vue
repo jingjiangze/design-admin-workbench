@@ -31,13 +31,7 @@ import { useRoute } from "vue-router";
 import { ElTooltip } from "element-plus";
 import AppIcon from "@/components/ui/AppIcon.vue";
 
-type RailIcon =
-  | "home"
-  | "orders"
-  | "bell"
-  | "income"
-  | "grid"
-  | "user";
+type RailIcon = "home" | "orders" | "bell" | "income" | "grid" | "user";
 
 const NAV_ITEMS: Array<{
   path: string;
@@ -48,10 +42,30 @@ const NAV_ITEMS: Array<{
 }> = [
   { path: "/welcome", title: "工作台", icon: "home", match: ["Welcome"] },
   { path: "/order/index", title: "订单", icon: "orders", match: ["OrderList"] },
-  { path: "/expedite/index", title: "催稿", icon: "bell", match: ["ExpediteList"] },
-  { path: "/income/index", title: "收入", icon: "income", match: ["IncomeOverview"] },
-  { path: "/category/index", title: "品类", icon: "grid", match: ["CategoryList"] },
-  { path: "/account/index", title: "账户", icon: "user", match: ["AccountInfo"] }
+  {
+    path: "/expedite/index",
+    title: "催稿",
+    icon: "bell",
+    match: ["ExpediteList"]
+  },
+  {
+    path: "/income/index",
+    title: "收入",
+    icon: "income",
+    match: ["IncomeOverview"]
+  },
+  {
+    path: "/category/index",
+    title: "品类",
+    icon: "grid",
+    match: ["CategoryList"]
+  },
+  {
+    path: "/account/index",
+    title: "账户",
+    icon: "user",
+    match: ["AccountInfo"]
+  }
 ];
 
 const route = useRoute();
@@ -63,55 +77,58 @@ function isActive(item: { match: string[] }): boolean {
 
 <style scoped>
 .app-rail {
-  width: var(--rail-width);
-  flex-shrink: 0;
-  height: 100vh;
   position: sticky;
   top: 0;
+  z-index: 30;
   display: flex;
+  flex-shrink: 0;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-1);
+  align-items: center;
+  width: var(--rail-width);
+  height: 100vh;
   padding: var(--space-3) 0;
   background: var(--app-surface);
   border-right: 1px solid var(--app-border);
-  z-index: 30;
 }
 
 .app-rail__item {
   position: relative;
-  width: 40px;
-  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
+  width: 40px;
+  height: 40px;
   color: var(--app-text-muted);
+  border-radius: var(--radius-md);
   transition:
     background-color 140ms ease,
     color 140ms ease;
 }
+
 .app-rail__item:hover {
+  color: var(--app-text);
   background: var(--app-surface-hover);
-  color: var(--app-text);
 }
+
 .app-rail__item--active {
-  background: var(--app-accent-soft);
   color: var(--app-text);
+  background: var(--app-accent-soft);
 }
 
 /* 左侧极细强调线（§四：非大面积色块选中态） */
 .app-rail__accent {
   position: absolute;
-  left: -10px;
   top: 10px;
   bottom: 10px;
+  left: -10px;
   width: 2px;
-  border-radius: 2px;
   background: var(--app-accent);
+  border-radius: 2px;
   opacity: 0;
   transition: opacity 140ms ease;
 }
+
 .app-rail__item--active .app-rail__accent {
   opacity: 1;
 }

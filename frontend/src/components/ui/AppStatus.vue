@@ -49,31 +49,37 @@ const tone = computed<StatusTone>(() => {
 <style scoped>
 .app-status {
   display: inline-flex;
-  align-items: center;
   gap: 6px;
+  align-items: center;
   font-size: 13px;
   line-height: 1;
   color: var(--app-text-secondary);
   white-space: nowrap;
 }
+
 .app-status__dot {
+  flex-shrink: 0;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  flex-shrink: 0;
 }
+
 .app-status--accent .app-status__dot {
   background: var(--app-accent);
 }
+
 .app-status--warning .app-status__dot {
   background: var(--app-warning);
 }
+
 .app-status--success .app-status__dot {
   background: var(--app-success);
 }
+
 .app-status--danger .app-status__dot {
   background: var(--app-danger);
 }
+
 .app-status--neutral .app-status__dot {
   background: var(--app-text-faint);
 }

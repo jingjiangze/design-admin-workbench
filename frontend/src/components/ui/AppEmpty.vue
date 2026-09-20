@@ -32,17 +32,20 @@ withDefaults(
 .app-empty {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: var(--space-2);
+  align-items: center;
   padding: var(--space-8) var(--space-4);
   color: var(--app-text-muted);
 }
+
 .app-empty__icon {
   color: var(--app-text-faint);
 }
+
 .app-empty__text {
   font-size: 13px;
 }
+
 .app-empty__extra {
   margin-top: var(--space-2);
 }

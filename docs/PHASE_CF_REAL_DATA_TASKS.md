@@ -19,8 +19,8 @@
 | # | 任务 | 状态 | 证据/备注 |
 |---|---|---|---|
 | CF-REAL-01 | 停止本机常驻任务 | **DONE 2026-09-20** | headless chrome(9222)/wrangler dev(8787) 已停；netstat 无项目监听端口；残余 chrome 为用户日常浏览器非项目实例 |
-| CF-REAL-02 | 建立 staging env | **SKELETON / BLOCKED ON CF CREDENTIALS** | wrangler.jsonc 已加 `env.staging`（LEGACY_API_ENABLED=true）；KV namespace 创建（`wrangler kv namespace create SESSIONS --env staging`）+ ID 回填 + secret put 需 API token |
-| CF-REAL-03 | staging 真实登录 | TODO（依赖 02） | Gate 任务；若 LEGACY_LOGIN_REJECTED 复现 → 报告 REAL_LOGIN=BLOCKED，继续 04+ 不阻塞（§七） |
+| CF-REAL-02 | 建立 staging env | **DONE 2026-09-20 深夜** | staging KV `c95b950e…`（API 创建）；deploy --env staging 成功（Version 25e2f58d）；KV=独立/DB=复用 preview（显式声明，见下"继承陷阱"）；secrets：SESSION_ENCRYPTION_KEY + TURNSTILE_SECRET_KEY（dummy）已 put；URL https://design-admin-workbench-staging.yuehuibu5561.workers.dev |
+| CF-REAL-03 | staging 真实登录 | **CHAIN-VERIFIED（差真实账号）** | 全链已验证：/api/config 下发 siteKey → 前端渲染 Turnstile（CDP 截图"成功!"态）→ RSA 密文 POST /api/auth/login → Turnstile 校验过 → 旧系统两步登录（d.jndx.net）→ 假凭据 401 LEGACY_LOGIN_REJECTED 完整透出到 UI。**仅剩真实账号凭据验证**；若账号仍被拒 → 报告 REAL_LOGIN=BLOCKED 继续 04+（§七） |
 | CF-REAL-04 | 真实订单 API | TODO（依赖 03） | GET /api/orders 必须来自 d.jndx.net；验证 total/countInfo/pageInfo/list/38 fields；sort=0&sorttype=1 Worker 强制注入 |
 | CF-REAL-05 | 真实订单搜索 | TODO（依赖 04） | 第一版订单号/店铺；直接映射旧系统查询参数（ordernum=），禁暴力翻页全量抓取（§十一） |
 | CF-REAL-06 | 真实订单详情 | TODO（依赖 04） | needsid 主详情键；九字段新旧一致性比对 → REAL_ORDER_PROOF |
@@ -44,9 +44,22 @@
 
 | 阻塞项 | 影响任务 | 解除条件 |
 |---|---|---|
-| Cloudflare API token（上轮临时 token 已按惯例删除） | CF-REAL-02 KV 创建 / staging+dark 部署 / CF-REAL-03+ | 用户提供 token（临时使用、用后即删） |
-| 真实账号登录曾 LEGACY_LOGIN_REJECTED | CF-REAL-03 | staging 重试；仍失败则如实报告 BLOCKED 并推进 04+ 中不依赖登录的部分 |
+| ~~Cloudflare API token~~ | ~~CF-REAL-02 / 部署~~ | **已解除**（2026-09-20 深夜新 token 到位并完成部署链，用后即删） |
+| 真实账号凭据（staging 登录门最后一环） | CF-REAL-03 | 用户提供凭据跑一次真实登录；或用户自行在 staging 页面登录测试；仍被拒则报告 BLOCKED 推进 04+ |
+| production SESSION_ENCRYPTION_KEY | CF-REAL-19 前的 --env production 部署 | production worker 未建（secret put 404 实测）；首次 --env production 部署时生成新 key 并 put |
 
-## 附：当前待部署差量
+## 2026-09-20 深夜进展（CF-REAL-02 完成夜）
 
-- production 线上仍是 UI-R1 亮色版（index-Cofm_pVY.js）；本地已就绪 UI-DARK（index-BapO2cNE.js，双主题验收全绿）。token 就绪后随 production 部署一并上线。
+1. ** 🔥 发现并修复"假登录"架构缺陷**：`vite-plugin-fake-server`（enableProd:true）在产物内注入 service worker，拦截 /login、/get-async-routes 返回模板假 JWT——**此前 UI 上一切"Mock 登录成功"均为客户端仿真，从未触达 Worker**（curl 实测 POST /login = 405 证实）。已移除插件 + 删除 mock/ 三文件；getAsyncRoutes 改本地 resolve（initRouter 无 .catch，禁打网络）。
+2. **登录真实接线**：前端 login → POST /api/auth/login；密码浏览器侧 RSA(PKCS#1 v1.5) 加密（jsencrypt + 旧系统公开公钥，utils/legacy-crypto.ts）；响应适配 UserResult（accessToken 存 csrfToken，真会话在 HttpOnly __dw_session）；补 .catch 错误透出；Turnstile 组件按 /api/config 下发的 siteKey 条件渲染 + 失败重置。
+3. **Worker 新增 GET /api/config**（无认证白名单）：下发 {mode, turnstileSiteKey}。
+4. **wrangler 4 资源继承陷阱（实测）**：d1_databases/kv_namespaces **不被 --env 环境继承**——staging 首次部署警告暴露；已为 staging 显式声明 D1（复用 preview 库）、为 production 显式声明 KV+D1（同顶层），否则 --env production 部署会静默丢绑定。
+5. **staging Turnstile 用官方 dummy 测试键**（site 1x00000000000000000000AA / secret 1x0000…AA，文档公开恒通过）：token 无 Turnstile Edit 权限（API 建 widget 403），production 前须在 dashboard 建真 widget 换真钥。
+6. **部署链**：顶层（Mock + 夜间模式 + 新登录）已上线 index-LRGJGM5A.js；staging Version 25e2f58d。CDP 登录门验证 PASS（gate-01/02 截图 + gate-report.json）。
+7. 已知小坑：本机 wrangler deploy/secret put 间歇性挂起（输出完成后不退出），部署实际成功——用 API 探测确认后杀进程即可；secrets 可直接 curl REST API 写（秒级）。
+
+## 附：部署状态
+
+- production 入口（design-admin-workbench.yuehuibu5561.workers.dev，顶层 Mock 模式）：2026-09-20 深夜已上线 UI-DARK + 真实登录接线（index-LRGJGM5A.js）。
+- staging（design-admin-workbench-staging…，Legacy ON）：Version 25e2f58d，登录门链路验证完成。
+- --env production（Legacy ON 的正式环境）：**尚未部署**——等 CF-REAL-03 真实账号通过后执行；部署时需生成新 SESSION_ENCRYPTION_KEY 并 put（worker 存在后），且 Turnstile 换真钥。

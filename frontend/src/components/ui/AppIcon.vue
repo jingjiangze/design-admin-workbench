@@ -118,8 +118,8 @@ const paths = computed(() => ICON_PATHS[props.name] ?? []);
 
 <style scoped>
 .app-icon {
-  flex-shrink: 0;
   display: inline-block;
+  flex-shrink: 0;
   vertical-align: middle;
 }
 </style>

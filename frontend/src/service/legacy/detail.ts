@@ -25,11 +25,15 @@ export type {
 async function fetchDetailHtml(
   query: string
 ): Promise<LegacyDetailContainer | null> {
-  const html = await http.request<string>("get", `/api/orders/detail?${query}`, {
-    responseType: "text",
-    headers: { Accept: "text/html, */*; q=0.01" },
-    timeout: 30000
-  });
+  const html = await http.request<string>(
+    "get",
+    `/api/orders/detail?${query}`,
+    {
+      responseType: "text",
+      headers: { Accept: "text/html, */*; q=0.01" },
+      timeout: 30000
+    }
+  );
   return extractEmbeddedDetailJson(
     String(html)
   ) as LegacyDetailContainer | null;

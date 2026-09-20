@@ -38,11 +38,13 @@ const emit = defineEmits<{ "update:modelValue": [v: boolean] }>();
   padding-bottom: 8px;
   margin-right: 0;
 }
+
 :deep(.el-dialog__title) {
   font-size: 15px;
   font-weight: 600;
   color: var(--app-text);
 }
+
 :deep(.el-dialog__body) {
   padding-top: 8px;
   color: var(--app-text-secondary);

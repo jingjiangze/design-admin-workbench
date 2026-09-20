@@ -81,26 +81,28 @@ function onInput(e: Event) {
 <style scoped>
 .app-search {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 10px;
   background: var(--app-surface);
   border: 1px solid var(--app-border-strong);
   border-radius: var(--radius-md);
-  padding: 0 10px;
   transition:
     border-color 140ms ease,
     box-shadow 140ms ease;
-  min-width: 0;
 }
+
 .app-search--focused {
   border-color: var(--app-accent);
   box-shadow: 0 0 0 1px var(--app-accent);
 }
 
 .app-search__icon {
-  color: var(--app-text-faint);
   flex-shrink: 0;
+  color: var(--app-text-faint);
 }
+
 .app-search--focused .app-search__icon {
   color: var(--app-text-muted);
 }
@@ -108,48 +110,54 @@ function onInput(e: Event) {
 .app-search__input {
   flex: 1;
   min-width: 0;
-  border: none;
-  outline: none;
-  background: transparent;
   font-family: inherit;
   color: var(--app-text);
+  outline: none;
+  background: transparent;
+  border: none;
 }
+
 .app-search__input::placeholder {
   color: var(--app-text-faint);
 }
+
 .app-search__input--sm {
   height: 30px;
   font-size: 13px;
 }
+
 .app-search__input--md {
   height: 36px;
   font-size: 13.5px;
 }
+
 .app-search__input--lg {
   height: 48px;
   font-size: 15px;
 }
 
 .app-search__kbd {
-  border: 1px solid var(--app-border);
-  background: var(--app-surface);
-  border-radius: 4px;
-  color: var(--app-text-faint);
+  padding: 3px 7px;
+  font-family: inherit;
   font-size: 12px;
   line-height: 1;
-  padding: 3px 7px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.app-search__clear {
-  border: none;
-  background: transparent;
   color: var(--app-text-faint);
   cursor: pointer;
-  padding: 4px;
-  display: inline-flex;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
   border-radius: 4px;
 }
+
+.app-search__clear {
+  display: inline-flex;
+  padding: 4px;
+  color: var(--app-text-faint);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+}
+
 .app-search__clear:hover {
   color: var(--app-text-secondary);
 }

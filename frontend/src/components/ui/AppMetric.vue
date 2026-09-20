@@ -26,18 +26,22 @@ withDefaults(
   gap: 2px;
   min-width: 0;
 }
+
 .app-metric__value {
   font-weight: 600;
-  color: var(--app-text);
   line-height: 1.2;
+  color: var(--app-text);
 }
+
 .app-metric--md .app-metric__value {
   font-size: 22px;
 }
+
 .app-metric--lg .app-metric__value {
   font-size: 34px;
   letter-spacing: -0.02em;
 }
+
 .app-metric__label {
   font-size: 12px;
   color: var(--app-text-muted);
