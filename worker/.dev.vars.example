@@ -1,0 +1,11 @@
+# Wrangler 本地开发密钥模板（短时本地调试专用）
+# 用法：cp worker/.dev.vars.example worker/.dev.vars 然后填入真实值
+# ⚠️ .dev.vars 已在 .gitignore —— 绝对禁止提交（长文 §三十四）
+# 生成 32 字节密钥（PowerShell）：
+#   [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+# 生成 32 字节密钥（Node）：
+#   node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+
+SESSION_ENCRYPTION_KEY=replace-with-base64-32-bytes
+# 生产登录防护需要；本地 Mock 调试可留空
+TURNSTILE_SECRET_KEY=

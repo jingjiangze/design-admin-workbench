@@ -1,0 +1,88 @@
+// Cloudflare Workers 配置（长文 §三十一/§三十二/§三十三/§四十一）
+//
+// ⚠️ 首次部署前需要完成（步骤见 docs/CLOUDFLARE_DEPLOYMENT.md）：
+//   1. npx wrangler d1 create design-workbench      → 回填 d1_databases[].database_id
+//   2. npx wrangler kv namespace create SESSIONS    → 回填 kv_namespaces[].id
+//   3. npx wrangler secret put SESSION_ENCRYPTION_KEY（base64 32 字节 AES-256）
+//   4. 生产环境追加：npx wrangler secret put TURNSTILE_SECRET_KEY
+// Secret 绝不写入本文件（长文 §三十四）。
+
+{
+  "name": "design-admin-workbench",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2026-09-20",
+
+  // 现代 Workers Static Assets（非传统 Workers Sites）
+  "assets": {
+    "directory": "./frontend/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "design-workbench",
+      // TODO: npx wrangler d1 create design-workbench 后回填
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      // TODO: npx wrangler kv namespace create SESSIONS 后回填
+      "id": "00000000000000000000000000000000"
+    }
+  ],
+
+  // 顶层 vars = 最安全默认（Mock 关旧系统）。生产由 environments 覆盖。
+  "vars": {
+    "LEGACY_API_ENABLED": "false",
+    "LEGACY_BASE_URL": "https://d.jndx.net"
+  },
+
+  "observability": {
+    "enabled": true
+  },
+
+  "environments": {
+    // development：远端 Mock（legacy=off），本地短时调试用 `wrangler dev`
+    "development": {
+      "vars": {
+        "LEGACY_API_ENABLED": "false",
+        "LEGACY_BASE_URL": "https://d.jndx.net"
+      }
+    },
+    // preview：真实 Worker + preview 资源（legacy=off，防预览环境触旧系统）
+    "preview": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "design-workbench-preview",
+          "database_id": "00000000-0000-0000-0000-000000000000",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "SESSIONS",
+          "id": "00000000000000000000000000000000"
+        }
+      ],
+      "vars": {
+        "LEGACY_API_ENABLED": "false",
+        "LEGACY_BASE_URL": "https://d.jndx.net"
+      }
+    },
+    // production：legacy=on（由 Worker env 控制，前端无法篡改，长文 §四十三）
+    "production": {
+      "vars": {
+        "LEGACY_API_ENABLED": "true",
+        "LEGACY_BASE_URL": "https://d.jndx.net"
+      }
+    }
+  }
+}
