@@ -1,461 +1,627 @@
-<script setup lang="ts">
-/**
- * 催稿中心（P1B-08/09，docs/DESIGNER_WORKBENCH_SPEC.md §6）
- *
- * 三 tab：待处理催稿（消息卡片+标记已读）/ 我要催稿（筛选勾选→生成文本→复制，
- * 不发送）/ 催稿记录（本次会话内已复制历史）。
- * 命名规范：催稿 / 待催稿 / 生成催稿文本 / 复制催稿内容（禁"一键催单/发送催单"）。
- * 变量缺失显式 <缺失:xxx>（renderRemindText，禁止静默留空）。
- * ⚠️ 本阶段禁止任何自动发送通道（短信/语音/微信/IM）。
- */
-import { computed, onMounted, ref } from "vue";
-import { ElMessage } from "element-plus";
-import OrderDrawer from "@/components/OrderDrawer/index.vue";
-import {
-  fetchExpediteMessages,
-  markMessageRead,
-  markAllRead,
-  renderRemindTextBatch
-} from "@/service/expedite";
-import type { ExpediteMessage, RemindTone } from "@/service/expedite";
-import { fetchOrders } from "@/service/order";
-import { enrichOrderAmounts } from "@/service/pricing/amount-resolution";
-import { listRules } from "@/service/pricing/pricing-rule-store";
-import { formatOrderNos, COPY_FORMAT_LABEL } from "@/utils/order-format";
-import type { CopyFormat } from "@/utils/order-format";
-import type { OrderListItem } from "@/service/types";
-
-defineOptions({
-  name: "Expedite"
-});
-
-const activeTab = ref("inbox");
-const loading = ref(true);
-
-// ===== Tab1 待处理催稿 =====
-const messages = ref<ExpediteMessage[]>([]);
-
-// ===== Tab2 我要催稿 =====
-const orders = ref<OrderListItem[]>([]);
-const selectedOrders = ref<OrderListItem[]>([]);
-const tone = ref<RemindTone>("concise");
-const customTemplate = ref("");
-const remindText = ref("");
-const remindDialogVisible = ref(false);
-const copyFormat = ref<CopyFormat>("newline");
-
-// ===== Tab3 催稿记录（会话内） =====
-interface RemindRecord {
-  time: string;
-  count: number;
-  text: string;
-  tone: RemindTone;
-}
-const records = ref<RemindRecord[]>([]);
-
-// Drawer
-const drawerVisible = ref(false);
-const drawerOrderId = ref<string | null>(null);
-const drawerRow = ref<OrderListItem | null>(null);
-
-async function load() {
-  loading.value = true;
-  try {
-    const [msgs, res] = await Promise.all([
-      fetchExpediteMessages(),
-      fetchOrders({ view: "all", page: 1, pageSize: 500 })
-    ]);
-    messages.value = msgs;
-    // 待催稿候选：活跃单（待接单/进行中/待审核）
-    orders.value = enrichOrderAmounts(res.list, listRules()).filter(o =>
-      ["pending_accept", "in_progress", "pending_review"].includes(o.view ?? "")
-    );
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(load);
-
-const unreadCount = computed(() => messages.value.filter(m => !m.read).length);
-
-async function viewOrder(msg: ExpediteMessage) {
-  const row = orders.value.find(o => o.orderId === msg.orderId) ?? null;
-  drawerRow.value = row;
-  drawerOrderId.value = msg.orderId;
-  drawerVisible.value = true;
-  if (!msg.read) {
-    await markMessageRead(msg.id);
-    messages.value = await fetchExpediteMessages();
-  }
-}
-
-async function readAll() {
-  await markAllRead();
-  messages.value = await fetchExpediteMessages();
-  ElMessage.success("已全部标记为已读");
-}
-
-/** 候选默认勾选：临近截稿（24h 内） */
-function quickSelectNearDeadline() {
-  selectedOrders.value = orders.value.filter(o => {
-    const d = o.endTime
-      ? new Date(o.endTime.replace(/-/g, "/")).getTime()
-      : NaN;
-    return (
-      !Number.isNaN(d) &&
-      d - Date.now() > 0 &&
-      d - Date.now() < 24 * 3600 * 1000
-    );
-  });
-}
-
-/** 生成催稿文本（变量缺失显式 <缺失:xxx>） */
-function generateText() {
-  if (selectedOrders.value.length === 0) {
-    ElMessage.info("请先勾选要催稿的订单");
-    return;
-  }
-  remindText.value = renderRemindTextBatch(
-    selectedOrders.value.map(o => ({
-      shop: o.shop,
-      orderNo: o.orderNo,
-      category: o.productName ?? "",
-      deadline: o.endTime
-    })),
-    tone.value,
-    tone.value === "custom" ? customTemplate.value : undefined
-  );
-  remindDialogVisible.value = true;
-}
-
-async function copyRemindText() {
-  try {
-    await navigator.clipboard.writeText(remindText.value);
-    ElMessage.success(`已复制 ${selectedOrders.value.length} 条催稿内容`);
-    records.value.unshift({
-      time: new Date().toLocaleString("zh-CN"),
-      count: selectedOrders.value.length,
-      text: remindText.value,
-      tone: tone.value
-    });
-    remindDialogVisible.value = false;
-  } catch {
-    ElMessage.warning("复制失败，请在文本框中手动复制");
-  }
-}
-
-async function copyOrderNos() {
-  const nos = selectedOrders.value.map(o => o.orderNo);
-  if (nos.length === 0) {
-    ElMessage.info("请先勾选订单");
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(formatOrderNos(nos, copyFormat.value));
-    ElMessage.success(
-      `已复制 ${nos.length} 个订单号（${COPY_FORMAT_LABEL[copyFormat.value]}）`
-    );
-  } catch {
-    ElMessage.warning("复制失败");
-  }
-}
-
-function reCopy(text: string) {
-  navigator.clipboard
-    .writeText(text)
-    .then(() => ElMessage.success("已重新复制"))
-    .catch(() => ElMessage.warning("复制失败"));
-}
-
-const TONE_LABEL: Record<RemindTone, string> = {
-  gentle: "温和",
-  concise: "简洁",
-  custom: "自定义"
-};
-
-function fmtTime(t: string): string {
-  const m = t.match(/\d{2}-\d{2} \d{2}:\d{2}/);
-  return m ? m[0] : t || "—";
-}
-</script>
-
 <template>
-  <div v-loading="loading" class="expedite-page">
-    <el-tabs v-model="activeTab">
-      <!-- Tab 1 待处理催稿 -->
-      <el-tab-pane :label="`待处理催稿（${unreadCount}）`" name="inbox">
-        <div class="tab-toolbar">
-          <el-button
-            size="small"
-            :disabled="unreadCount === 0"
-            @click="readAll"
-          >
-            全部已读
-          </el-button>
-        </div>
-        <div class="msg-list">
-          <div
-            v-for="msg in messages"
-            :key="msg.id"
-            class="msg-card"
-            :class="{ unread: !msg.read }"
-          >
-            <div class="msg-head">
-              <span class="msg-cat">{{ msg.category }}</span>
-              <span class="mono">{{ msg.orderNo }}</span>
-              <el-tag v-if="!msg.read" size="small" type="danger" effect="plain"
-                >未读</el-tag
-              >
-            </div>
-            <div class="msg-meta">
-              店铺：{{ msg.shop }} · 截稿：{{ fmtTime(msg.deadline) }} ·
-              {{ fmtTime(msg.sendTime) }}
-            </div>
-            <div v-if="msg.note" class="msg-note">
-              设计师备注：{{ msg.note }}
-            </div>
-            <div class="msg-actions">
-              <el-button
-                size="small"
-                type="primary"
-                plain
-                @click="viewOrder(msg)"
-                >查看订单</el-button
-              >
-              <el-button
-                v-if="!msg.read"
-                size="small"
-                @click="markMessageRead(msg.id).then(load)"
-              >
-                标记已读
-              </el-button>
-            </div>
-          </div>
-          <div v-if="messages.length === 0" class="empty-hint">
-            暂无催稿消息
-          </div>
-        </div>
-      </el-tab-pane>
+  <div class="expedite">
+    <div class="expedite__head">
+      <h1 class="expedite__title">催稿</h1>
+      <span v-if="!loading" class="expedite__count app-num">
+        待处理 {{ pendingCount }}
+      </span>
+      <button
+        v-if="pendingCount > 0"
+        class="expedite__read-all"
+        type="button"
+        @click="readAll"
+      >
+        全部已读
+      </button>
+    </div>
 
-      <!-- Tab 2 我要催稿 -->
-      <el-tab-pane label="我要催稿" name="mine">
-        <div class="tab-toolbar">
-          <el-button size="small" @click="quickSelectNearDeadline">
-            勾选 24h 内截稿
-          </el-button>
-          <el-select v-model="copyFormat" size="small" class="fmt-select">
-            <el-option
-              v-for="(label, key) in COPY_FORMAT_LABEL"
-              :key="key"
-              :label="`订单号·${label}`"
-              :value="key"
+    <!-- 列表（§三十一：行式信息，非卡片墙） -->
+    <div class="expedite__list">
+      <AppSkeleton v-if="loading" :rows="5" type="table" />
+      <template v-else-if="messages.length">
+        <div
+          v-for="m in messages"
+          :key="m.id"
+          class="expedite__row"
+          :class="{
+            'expedite__row--unread': !m.read,
+            'expedite__row--selected': selected.has(m.id)
+          }"
+        >
+          <span @click.stop>
+            <ElCheckbox
+              :model-value="selected.has(m.id)"
+              @change="toggleSelect(m.id)"
             />
-          </el-select>
-          <el-button size="small" @click="copyOrderNos">复制订单号</el-button>
-          <el-radio-group v-model="tone" size="small">
-            <el-radio-button
-              v-for="(label, key) in TONE_LABEL"
-              :key="key"
-              :value="key"
-            >
-              {{ label }}
-            </el-radio-button>
-          </el-radio-group>
-          <el-button size="small" type="primary" @click="generateText">
-            生成催稿文本（{{ selectedOrders.length }}）
-          </el-button>
-        </div>
-        <p class="hint">
-          当前系统不支持发送催稿——生成文本后自行粘贴给店铺/客服。变量缺失会显示
-          <code>&lt;缺失:xxx&gt;</code>。
-        </p>
-        <el-table
-          :data="orders"
-          size="small"
-          class="compact-table"
-          @selection-change="selectedOrders = $event"
-        >
-          <el-table-column type="selection" width="42" />
-          <el-table-column
-            prop="orderNo"
-            label="订单号"
-            min-width="150"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <span class="mono">{{ row.orderNo }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="品类" width="110">
-            <template #default="{ row }">{{ row.productName || "—" }}</template>
-          </el-table-column>
-          <el-table-column
-            prop="shop"
-            label="店铺"
-            min-width="110"
-            show-overflow-tooltip
-          />
-          <el-table-column label="截稿" width="110">
-            <template #default="{ row }">{{ fmtTime(row.endTime) }}</template>
-          </el-table-column>
-          <el-table-column prop="stateLabel" label="状态" width="90" />
-        </el-table>
-      </el-tab-pane>
-
-      <!-- Tab 3 催稿记录 -->
-      <el-tab-pane :label="`催稿记录（${records.length}）`" name="history">
-        <div v-if="records.length === 0" class="empty-hint">
-          本次会话暂无记录（生成并复制催稿文本后在此留存，Phase 2 持久化）
-        </div>
-        <div v-for="(rec, i) in records" :key="i" class="record-card">
-          <div class="record-head">
-            <span>{{ rec.time }}</span>
-            <span>{{ rec.count }} 条 · {{ TONE_LABEL[rec.tone] }}</span>
-            <el-button
-              size="small"
-              text
-              type="primary"
-              @click="reCopy(rec.text)"
-            >
-              重新复制
-            </el-button>
+          </span>
+          <div class="expedite__main" @click="openDetail(m)">
+            <div class="expedite__line1">
+              <span class="app-mono expedite__no">{{ m.orderNo }}</span>
+              <span class="expedite__muted">{{ m.category || "—" }}</span>
+              <span class="expedite__muted">{{ m.shop }}</span>
+              <span v-if="!m.read" class="expedite__unread-dot" />
+            </div>
+            <div class="expedite__note">{{ m.note || "（无催稿备注）" }}</div>
           </div>
-          <pre class="record-text">{{ rec.text }}</pre>
+          <div class="expedite__meta">
+            <span class="expedite__deadline app-num"
+              >截稿 {{ fmtDeadline(m.deadline) }}</span
+            >
+            <span class="expedite__time app-num">{{
+              fmtTime(m.sendTime)
+            }}</span>
+          </div>
+          <div class="expedite__actions">
+            <AppButton variant="text" size="sm" @click="openDetail(m)">
+              查看订单
+            </AppButton>
+            <AppButton
+              v-if="!m.read"
+              variant="text"
+              size="sm"
+              icon="check"
+              @click="markRead(m.id)"
+            >
+              标记已读
+            </AppButton>
+          </div>
         </div>
-      </el-tab-pane>
-    </el-tabs>
-
-    <!-- 生成文本弹窗 -->
-    <el-dialog
-      v-model="remindDialogVisible"
-      title="催稿文本（生成后复制，不自动发送）"
-      width="520px"
-    >
-      <el-input v-model="remindText" type="textarea" :rows="10" />
-      <template #footer>
-        <el-button @click="remindDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="copyRemindText"
-          >复制催稿内容</el-button
-        >
       </template>
-    </el-dialog>
+      <AppEmpty v-else icon="check" text="今天没有待催稿" />
+    </div>
+
+    <!-- 浮现式批量栏（§三十二） -->
+    <Transition name="expedite-bar">
+      <div v-if="selected.size > 0" class="expedite__bulk">
+        <span class="expedite__bulk-count app-num"
+          >已选择 {{ selected.size }} 个订单</span
+        >
+        <i class="expedite__sep" />
+        <AppButton variant="ghost" size="sm" icon="copy" @click="bulkCopyNos">
+          复制订单号
+        </AppButton>
+        <AppButton variant="solid" size="sm" icon="bell" @click="openComposer">
+          生成催稿文本
+        </AppButton>
+        <button
+          class="expedite__bulk-close"
+          type="button"
+          aria-label="取消选择"
+          @click="clearSelection"
+        >
+          <AppIcon name="close" :size="14" />
+        </button>
+      </div>
+    </Transition>
+
+    <!-- 催稿文本 Drawer（§三十二 右侧预览 + 复制全部；无发送按钮） -->
+    <AppDrawer v-model="composerVisible" :size="520" title="生成催稿文本">
+      <div class="composer">
+        <div class="composer__tones">
+          <button
+            v-for="t in TONES"
+            :key="t.key"
+            class="composer__tone"
+            :class="{ 'composer__tone--active': tone === t.key }"
+            type="button"
+            @click="tone = t.key"
+          >
+            {{ t.label }}
+          </button>
+        </div>
+
+        <div v-if="tone === 'custom'" class="composer__custom">
+          <ElInput
+            v-model="customTemplate"
+            type="textarea"
+            :rows="3"
+            placeholder="自定义模板：{店铺} {订单} {品类} {截稿}"
+          />
+          <p class="composer__var-hint">
+            可用变量：{店铺} {订单} {品类} {截稿} · 缺失将显式标记
+            <span class="app-mono">&lt;缺失:xxx&gt;</span>
+          </p>
+        </div>
+
+        <div class="composer__preview">
+          <div
+            v-for="(text, i) in composedTexts"
+            :key="i"
+            class="composer__item"
+          >
+            <div class="composer__item-head">
+              <span class="app-mono">{{ selectedRows[i]?.orderNo }}</span>
+              <button
+                class="composer__item-copy"
+                type="button"
+                @click="copyOne(text)"
+              >
+                复制
+              </button>
+            </div>
+            <p class="composer__item-text">{{ text }}</p>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <AppButton variant="solid" icon="copy" @click="copyAll">
+          复制全部（{{ composedTexts.length }}）
+        </AppButton>
+      </template>
+    </AppDrawer>
 
     <OrderDrawer
       v-model="drawerVisible"
-      :order-id="drawerOrderId"
+      :order-id="drawerId"
       :order-row="drawerRow"
     />
   </div>
 </template>
 
+<script setup lang="ts">
+/**
+ * 催稿工作台（Phase UI-R1 §三十一/§三十二）
+ * 重点 = 一次完成：勾选 → 生成催稿文本 → 复制。
+ * ⚠️ 无"发送催稿"按钮（旧系统无发送 API，禁止出现该入口）；
+ * 标记已读仅 Mock 本地（Real 通道不接写接口，长文 CF §十三）
+ */
+import { computed, onMounted, ref } from "vue";
+import { ElCheckbox, ElInput, ElMessage } from "element-plus";
+import {
+  AppButton,
+  AppDrawer,
+  AppEmpty,
+  AppIcon,
+  AppSkeleton
+} from "@/components/ui";
+import OrderDrawer from "@/components/OrderDrawer/index.vue";
+import {
+  fetchExpediteMessages,
+  markMessageRead,
+  markAllRead,
+  renderRemindTextBatch,
+  type ExpediteMessage,
+  type RemindTone
+} from "@/service/expedite";
+import { fetchOrders } from "@/service/order";
+import type { OrderListItem } from "@/service/types";
+
+defineOptions({ name: "ExpediteList" });
+
+const TONES: Array<{ key: Exclude<RemindTone, "custom">; label: string }> = [
+  { key: "gentle", label: "温和" },
+  { key: "concise", label: "简洁" }
+];
+
+const loading = ref(true);
+const messages = ref<ExpediteMessage[]>([]);
+const selected = ref(new Set<string>());
+
+const composerVisible = ref(false);
+const tone = ref<RemindTone>("gentle");
+const customTemplate = ref("");
+
+const drawerVisible = ref(false);
+const drawerId = ref<string | null>(null);
+const drawerRow = ref<OrderListItem | null>(null);
+
+const pendingCount = computed(() => messages.value.filter(m => !m.read).length);
+
+/** 勾选顺序保持列表顺序 */
+const selectedRows = computed(() =>
+  messages.value.filter(m => selected.value.has(m.id))
+);
+
+async function load() {
+  loading.value = true;
+  try {
+    messages.value = await fetchExpediteMessages();
+  } catch {
+    messages.value = [];
+  } finally {
+    loading.value = false;
+  }
+}
+
+function toggleSelect(id: string) {
+  const next = new Set(selected.value);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  selected.value = next;
+}
+function clearSelection() {
+  selected.value = new Set();
+}
+
+async function markRead(id: string) {
+  await markMessageRead(id);
+  await load();
+}
+async function readAll() {
+  await markAllRead();
+  await load();
+}
+
+function openDetail(m: ExpediteMessage) {
+  // 消息仅含列表级字段 → 组装最小行供 Drawer 展示；详情本体按 needsid 拉取
+  const row = {
+    orderId: m.orderId,
+    applyId: "",
+    orderNo: m.orderNo,
+    shop: m.shop,
+    taskType: "",
+    stateLabel: "",
+    view: null,
+    customerName: "",
+    customerNick: "",
+    memberName: "",
+    endTime: m.deadline,
+    createTime: "",
+    completeTime: "",
+    legacyAmount: null,
+    overrideAmount: null,
+    effectiveAmount: null,
+    amountSource: "undefined" as const,
+    price: 0,
+    sales: 0,
+    urgent: false,
+    isRepulse: false,
+    isRegular: false,
+    productName: m.category
+  } satisfies OrderListItem;
+  drawerId.value = m.orderId;
+  drawerRow.value = row;
+  drawerVisible.value = true;
+}
+
+// ── 批量 ──
+async function bulkCopyNos() {
+  const nos = selectedRows.value.map(m => m.orderNo);
+  try {
+    await navigator.clipboard.writeText(nos.join("\n"));
+    ElMessage.success(`已复制 ${nos.length} 个订单号`);
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+
+function openComposer() {
+  composerVisible.value = true;
+}
+
+/** 生成的分段文本（缺失变量由 service 显式 <缺失:xxx>） */
+const composedTexts = computed(() => {
+  const rows = selectedRows.value;
+  if (!rows.length) return [];
+  return renderRemindTextBatch(
+    rows.map(m => ({
+      shop: m.shop,
+      orderNo: m.orderNo,
+      category: m.category,
+      deadline: m.deadline
+    })),
+    tone.value === "custom" ? "custom" : tone.value,
+    tone.value === "custom" ? customTemplate.value : undefined
+  ).split("\n\n");
+});
+
+async function copyOne(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    ElMessage.success("已复制");
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+async function copyAll() {
+  const text = composedTexts.value.join("\n\n");
+  try {
+    await navigator.clipboard.writeText(text);
+    ElMessage.success(`已复制全部 ${composedTexts.value.length} 条`);
+  } catch {
+    ElMessage.error("复制失败");
+  }
+}
+
+function fmtDeadline(t: string): string {
+  if (!t) return "—";
+  const d = new Date(t.replace(/-/g, "/"));
+  if (Number.isNaN(d.getTime())) return t;
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${hm}`;
+}
+function fmtTime(t: string): string {
+  if (!t) return "";
+  return t;
+}
+
+onMounted(async () => {
+  await load();
+  // 催稿行不含金额规则信息；拉一次订单列表补全「查看订单」行的金额展示
+  void fetchOrders({ view: "all", page: 1, pageSize: 100 }).catch(() => null);
+});
+</script>
+
 <style scoped>
-.expedite-page {
-  padding: 16px 20px;
-}
-
-.tab-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-.fmt-select {
-  width: 130px;
-}
-
-.hint {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.hint code {
-  color: var(--el-color-warning);
-}
-
-.msg-list {
+.expedite {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
 }
 
-.msg-card {
-  padding: 12px 14px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-}
-
-.msg-card.unread {
-  background: var(--el-color-danger-light-9);
-  border-color: var(--el-color-danger-light-5);
-}
-
-.msg-head {
+.expedite__head {
   display: flex;
-  gap: 10px;
-  align-items: center;
-  font-size: 14px;
-  font-weight: 500;
+  gap: var(--space-3);
+  align-items: baseline;
 }
 
-.msg-cat {
-  color: var(--el-color-primary);
+.expedite__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--app-text);
 }
 
-.mono {
-  font-family: monospace;
-}
-
-.msg-meta {
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.msg-note {
-  margin-top: 6px;
+.expedite__count {
   font-size: 13px;
+  color: var(--app-text-muted);
 }
 
-.msg-actions {
-  margin-top: 10px;
+.expedite__read-all {
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
 }
 
-.record-card {
-  padding: 10px 12px;
-  margin-bottom: 10px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+.expedite__read-all:hover {
+  color: var(--app-text);
 }
 
-.record-head {
+/* 列表行 */
+.expedite__list {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
+}
+
+.expedite__row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--app-border);
+  border-radius: var(--radius-sm);
+  transition: background-color 140ms ease;
+}
+
+.expedite__row:hover {
+  background: var(--app-surface-hover);
+}
+
+.expedite__row--selected {
+  background: var(--app-accent-soft);
+}
+
+.expedite__main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.expedite__line1 {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.expedite__no {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.expedite__muted {
+  font-size: 12.5px;
+  color: var(--app-text-muted);
+}
+
+.expedite__unread-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--app-danger);
+  border-radius: 50%;
+}
+
+.expedite__note {
+  max-width: 520px;
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: var(--app-text-faint);
+  white-space: nowrap;
+}
+
+.expedite__meta {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-end;
+}
+
+.expedite__deadline {
+  font-size: 12.5px;
+  color: var(--app-text-secondary);
+}
+
+.expedite__time {
+  font-size: 11.5px;
+  color: var(--app-text-faint);
+}
+
+.expedite__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+}
+
+/* 浮现批量栏 */
+.expedite__bulk {
+  position: fixed;
+  bottom: var(--space-6);
+  left: 50%;
+  z-index: 100;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-overlay-soft);
+  transform: translateX(-50%);
+}
+
+.expedite__bulk-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.expedite__bulk-close {
+  display: inline-flex;
+  padding: 4px;
+  color: var(--app-text-faint);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+}
+
+.expedite__bulk-close:hover {
+  color: var(--app-text);
+  background: var(--app-surface-hover);
+}
+
+.expedite__sep {
+  display: inline-block;
+  width: 3px;
+  height: 3px;
+  background: var(--app-text-faint);
+  border-radius: 50%;
+}
+
+.expedite-bar-enter-active,
+.expedite-bar-leave-active {
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+
+.expedite-bar-enter-from,
+.expedite-bar-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+/* 催稿文本 Drawer */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.composer__tones {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.composer__tone {
+  padding: 5px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.composer__tone:hover {
+  color: var(--app-text);
+  background: var(--app-surface-hover);
+}
+
+.composer__tone--active {
+  font-weight: 500;
+  color: var(--app-text);
+  background: var(--app-accent-soft);
+}
+
+.composer__custom {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.composer__var-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--app-text-faint);
+}
+
+.composer__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.composer__item {
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+}
+
+.composer__item-head {
+  display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  margin-bottom: var(--space-1);
 }
 
-.record-text {
-  margin: 8px 0 0;
+.composer__item-head .app-mono {
+  font-size: 12.5px;
+  color: var(--app-text-muted);
+}
+
+.composer__item-copy {
   font-family: inherit;
   font-size: 12px;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+.composer__item-copy:hover {
+  color: var(--app-text);
+}
+
+.composer__item-text {
+  margin: 0;
+  font-size: 13.5px;
   line-height: 1.7;
+  color: var(--app-text);
   word-break: break-all;
   white-space: pre-wrap;
-}
-
-.compact-table {
-  width: 100%;
-}
-
-.empty-hint {
-  padding: 16px 0;
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
 }
 </style>
