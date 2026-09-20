@@ -1,5 +1,5 @@
 const { VITE_HIDE_HOME } = import.meta.env;
-const Layout = () => import("@/layout/index.vue");
+const Layout = () => import("@/layout/shell/AppShell.vue");
 
 export default {
   path: "/",

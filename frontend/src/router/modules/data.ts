@@ -1,4 +1,4 @@
-const Layout = () => import("@/layout/index.vue");
+const Layout = () => import("@/layout/shell/AppShell.vue");
 
 export default {
   path: "/income",

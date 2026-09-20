@@ -1,4 +1,4 @@
-const Layout = () => import("@/layout/index.vue");
+const Layout = () => import("@/layout/shell/AppShell.vue");
 
 export default [
   {
@@ -42,6 +42,26 @@ export default [
         path: "/redirect/:path(.*)",
         name: "Redirect",
         component: () => import("@/layout/redirect.vue")
+      }
+    ]
+  },
+  {
+    // 视觉验收页（Phase UI-R1 §四十六）：展示基础组件，不进入正式导航
+    path: "/ui-preview",
+    name: "UiPreview",
+    component: Layout,
+    meta: {
+      title: "视觉验收",
+      showLink: false
+    },
+    children: [
+      {
+        path: "/ui-preview/index",
+        name: "UiPreviewIndex",
+        component: () => import("@/views/ui-preview/index.vue"),
+        meta: {
+          title: "视觉验收"
+        }
       }
     ]
   }

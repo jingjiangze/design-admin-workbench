@@ -1,4 +1,4 @@
-const Layout = () => import("@/layout/index.vue");
+const Layout = () => import("@/layout/shell/AppShell.vue");
 
 export default {
   path: "/order",
@@ -16,15 +16,6 @@ export default {
       component: () => import("@/views/order/index.vue"),
       meta: {
         title: "订单"
-      }
-    },
-    {
-      // P1A-09 技术 Proof 测试页（P1B 替换为完整 Drawer 后移除）
-      path: "/order/detail-proof",
-      name: "DetailProof",
-      component: () => import("@/views/order/detail-proof.vue"),
-      meta: {
-        title: "详情链路 Proof"
       }
     }
   ]
