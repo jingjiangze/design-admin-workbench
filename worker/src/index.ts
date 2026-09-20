@@ -71,12 +71,12 @@ export default {
         return jsonOk(await fetchMockOrderList(env, query));
       }
 
-      // ── 订单详情（GET /api/orders/detail?needsid=）── 551KB HTML 透传
+      // ── 订单详情（GET /api/orders/detail?needsid=|applyid=）── HTML 透传
       if (path === "/api/orders/detail" && request.method === "GET") {
-        const { needsid } = parseDetailQuery(url);
+        const query = parseDetailQuery(url);
         if (isLegacyEnabled(env)) {
           const cookie = await legacyCookieOf(env, ctx);
-          const upstream = await fetchLegacyOrderDetail(env, cookie, needsid);
+          const upstream = await fetchLegacyOrderDetail(env, cookie, query);
           const headers = new Headers({
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff"
@@ -85,7 +85,7 @@ export default {
           headers.set("Content-Type", upstreamType ?? "text/html; charset=utf-8");
           return new Response(upstream.body, { status: 200, headers });
         }
-        return withNoStore(await fetchMockOrderDetail(needsid));
+        return withNoStore(await fetchMockOrderDetail(query.needsid ?? query.applyid ?? ""));
       }
 
       // ── 催稿收件箱（GET /api/reminders）──

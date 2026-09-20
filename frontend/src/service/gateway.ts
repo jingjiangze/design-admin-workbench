@@ -1,10 +1,12 @@
 /**
- * P1A-11 Mock/Real 分离网关
+ * Mock/Real 分离网关（Phase CF-0 语义更新）
  *
- * VITE_LEGACY_API_ENABLED = "true" 时走真实旧系统（经 proxy / Nginx 反代）；
- * 其他值（默认 false）走 Mock（脱敏真实样本，形态与真实响应一致）。
- * ⚠️ 凭据（账号/密码/Cookie/Token）禁止写入任何 .env 文件——
- *    真实会话由浏览器自动携带（SESSION Cookie），与凭据无关。
+ * VITE_LEGACY_API_ENABLED = "true" 时前端请求 /api/*（经 Cloudflare Worker 网关；
+ * Mock/Real 最终由 Worker 环境变量 LEGACY_API_ENABLED 决定，前端无法篡改——长文 §四十三）；
+ * 其他值（默认 false）走本地内存 Mock（脱敏真实样本，形态与真实响应一致），
+ * 用于无 Worker 的纯前端开发与 vitest。
+ * ⚠️ 凭据（账号/密码/Cookie/Token）禁止写入任何 .env 文件。
+ * ⚠️ 前端不再出现旧系统 URL（唯一居住地 = worker/src/legacy/）。
  */
 
 /** Mock 数据源（脱敏真实样本，与 vitest fixtures 同源） */

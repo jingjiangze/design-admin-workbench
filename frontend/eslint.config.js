@@ -119,23 +119,23 @@ export default defineConfig([
     }
   },
   {
-    // P1A-05 URL 隔离（四层架构强制，见 docs/TECHNICAL_BASELINE.md）：
-    // 旧系统路径 /chsjs 与接口 *.do 字面量只允许出现在 Legacy Adapter 层
-    // src/service/legacy/；其余任何源码文件出现即 lint 报错。
+    // Phase CF-0 URL 边界（docs/CLOUDFLARE_ARCHITECTURE.md §八）：
+    // 生产前端完全不应该知道旧系统 URL —— /chsjs 与 *.do 字面量在 frontend/src
+    // 全域禁止（不再有任何目录豁免）。旧 URL 的唯一居住地 = worker/src/legacy/。
+    // 前端只允许出现 /api/* 新系统端点。
     files: ["src/**/*.{ts,tsx,vue}"],
-    ignores: ["src/service/legacy/**"],
     rules: {
       "no-restricted-syntax": [
         "error",
         {
           selector: "Literal[value=/chsjs/i]",
           message:
-            "旧系统路径 /chsjs 只能出现在 src/service/legacy/（Legacy Adapter 层）"
+            "旧系统路径 /chsjs 禁止出现在前端（Phase CF-0：唯一居住地 = worker/src/legacy/）"
         },
         {
           selector: "Literal[value=/\\.do\\b/]",
           message:
-            "旧系统 *.do 接口名只能出现在 src/service/legacy/（Legacy Adapter 层）"
+            "旧系统 *.do 接口名禁止出现在前端（Phase CF-0：唯一居住地 = worker/src/legacy/）"
         }
       ]
     }

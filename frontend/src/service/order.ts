@@ -1,9 +1,10 @@
 /**
  * 订单领域服务 —— 视图层获取订单数据的唯一入口
  *
- * 四层架构：UI → Domain Service（本层）→ Legacy Adapter → HTTP
- * 视图层禁止：import "@/service/legacy/*"、出现 /chsjs 或 *.do 字面量
- * P1A-11：isLegacyRealEnabled() 决定 Mock（脱敏样本）/ Real（旧系统）双通道
+ * 四层架构（Phase CF-0）：UI → Domain Service（本层）→ /api/* → CF Worker → 旧系统
+ * 视图层禁止：import "@/service/legacy/*"；前端全域禁 /chsjs 与 *.do 字面量
+ * （ESLint 强制，worker/src/legacy/ 是旧 URL 唯一居住地）。
+ * VITE_LEGACY_API_ENABLED 决定 Mock（脱敏样本）/ Real（/api/* 网关）双通道。
  */
 import { fetchLegacyOrderList, mapLegacyOrderListItem } from "./legacy/order";
 import { getMockOrderList, isLegacyRealEnabled } from "./gateway";

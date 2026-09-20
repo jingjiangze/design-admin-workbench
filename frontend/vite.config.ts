@@ -25,18 +25,14 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
       host: "0.0.0.0",
       // 本地跨域代理 https://cn.vitejs.dev/config/server-options.html#server-proxy
       proxy: {
-        // P1A-06 Session Proof：旧系统接口经 dev proxy 同源化。
-        // 旧系统为纯 SESSION Cookie 会话（无 Token/CORS 头），浏览器侧直连跨源
-        // 会被 SameSite 拦截；proxy 使请求与页面同源（localhost:8848），
-        // Set-Cookie 由 Node 侧转发，浏览器正常持有会话。
-        // 仅开发环境生效；生产部署需 Nginx 同源反代（同配置语义）。
-        "/chsjs": {
-          target: "https://d.jndx.net",
-          changeOrigin: true,
-          secure: false,
-          // [VERIFIED] 旧系统 Set-Cookie 带 Domain=d.jndx.net，与 localhost 不匹配
-          // 会被浏览器拒收；重写 Domain 为 localhost（SESSION, HttpOnly, SameSite=Lax）
-          cookieDomainRewrite: { "d.jndx.net": "localhost" }
+        // Phase CF-0：前端只请求 /api/*（新系统端点），旧系统 URL 已从
+        // frontend 全部移除（worker/src/legacy/ 是唯一居住地）。
+        // 本地短时调试流：pnpm dev（vite）+ npx wrangler dev（Worker :8787），
+        // /api 由 proxy 转发至本地 Worker。⚠️ 仅限明确短时调试——
+        // 长期开发/预览走 Cloudflare Preview（docs/CLOUDFLARE_DEPLOYMENT.md）。
+        "/api": {
+          target: "http://127.0.0.1:8787",
+          changeOrigin: true
         }
       },
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布

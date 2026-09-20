@@ -11,25 +11,34 @@
 import type { Env } from "../env";
 import { legacyFetch, LegacyError } from "./client";
 
-export function parseDetailQuery(url: URL): { needsid: string } {
+export interface DetailQuery {
+  /** needsid 主键（优先）；applyid 兼容键二选一 */
+  needsid?: string;
+  applyid?: string;
+}
+
+export function parseDetailQuery(url: URL): DetailQuery {
   const needsid = (url.searchParams.get("needsid") ?? "").trim();
-  // 订单号形态 TT_yymmdd+seq（P0 取证），白名单字符防注入
-  if (!needsid || !/^[A-Za-z0-9_\-]{1,64}$/.test(needsid)) {
-    throw new LegacyError(400, "BAD_NEEDSID", "needsid 非法");
-  }
-  return { needsid };
+  const applyid = (url.searchParams.get("applyid") ?? "").trim();
+  // 订单号形态 TT_yymmdd+seq / applyid 数字串（P0 取证），白名单字符防注入
+  const idPattern = /^[A-Za-z0-9_\-]{1,64}$/;
+  if (needsid && idPattern.test(needsid)) return { needsid };
+  if (applyid && idPattern.test(applyid)) return { applyid };
+  throw new LegacyError(400, "BAD_NEEDSID", "needsid 或 applyid 必填且合法");
 }
 
 export async function fetchLegacyOrderDetail(
   env: Env,
   legacyCookie: string,
-  needsid: string
+  query: DetailQuery
 ): Promise<Response> {
-  const res = await legacyFetch(
-    env,
-    `/chsjs/child/needsDetail2.do?needsid=${encodeURIComponent(needsid)}`,
-    { legacyCookie, accept: "text/html, */*; q=0.01" }
-  );
+  const path = query.needsid
+    ? `/chsjs/child/needsDetail2.do?needsid=${encodeURIComponent(query.needsid)}`
+    : `/chsjs/child/needsDetail.do?applyid=${encodeURIComponent(query.applyid!)}`;
+  const res = await legacyFetch(env, path, {
+    legacyCookie,
+    accept: "text/html, */*; q=0.01"
+  });
   if (res.status === 401 || res.status === 302) {
     throw new LegacyError(401, "LEGACY_SESSION_EXPIRED", "旧系统会话已失效，请重新登录");
   }
