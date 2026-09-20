@@ -1,501 +1,470 @@
-<script setup lang="ts">
-/**
- * 工作台首页（P1B-02，docs/DESIGNER_WORKBENCH_SPEC.md §2）
- *
- * 结构：大搜索框 → 4 统计卡（待处理/待催稿/今日订单/本月收入）→ 今天需要关注
- *       → 最近订单（≤8 行，点击开 Drawer）→ 常用品类。
- * 禁止：大面积图表 / 复杂 BI / 几十个统计卡片 / 大量装饰。
- * 数据经 Domain Service（income.ts / expedite.ts / pricing），UI 零 legacy 引用。
- */
-import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
-import { ElMessage } from "element-plus";
-import OrderDrawer from "@/components/OrderDrawer/index.vue";
-import { fetchIncomeScope, getIncomeDashboard } from "@/service/income";
-import type { IncomeSummary, CategoryIncome } from "@/service/income";
-import type { OrderListItem } from "@/service/types";
-import {
-  enrichOrderAmounts,
-  formatAmount
-} from "@/service/pricing/amount-resolution";
-import { listRules } from "@/service/pricing/pricing-rule-store";
-import { fetchExpediteMessages } from "@/service/expedite";
-import type { ExpediteMessage } from "@/service/expedite";
-import {
-  dateKey,
-  parseCompleteTime
-} from "@/service/income/income-calculation";
-
-defineOptions({
-  name: "Welcome"
-});
-
-const router = useRouter();
-
-const loading = ref(true);
-const orders = ref<OrderListItem[]>([]);
-const messages = ref<ExpediteMessage[]>([]);
-const summary = ref<IncomeSummary | null>(null);
-const categories = ref<CategoryIncome[]>([]);
-
-// Drawer 联动
-const drawerVisible = ref(false);
-const drawerOrderId = ref<string | null>(null);
-const drawerRow = ref<OrderListItem | null>(null);
-
-// 搜索框（P1B-03 全局化的本页落点）
-const keyword = ref("");
-
-async function loadAll() {
-  loading.value = true;
-  try {
-    const [scope, dash, msgs] = await Promise.all([
-      fetchIncomeScope(),
-      getIncomeDashboard("month"),
-      fetchExpediteMessages()
-    ]);
-    // 规则 enrich（规则可能已变化，重算派生金额）
-    orders.value = enrichOrderAmounts(scope, listRules());
-    summary.value = dash.summary;
-    categories.value = dash.categories;
-    messages.value = msgs;
-  } finally {
-    loading.value = false;
-  }
-}
-
-onMounted(loadAll);
-
-// ===== 统计计算 =====
-
-/** 今日键 */
-const today = dateKey(new Date());
-
-const activeOrders = computed(() =>
-  orders.value.filter(
-    o =>
-      o.view === "pending_accept" ||
-      o.view === "in_progress" ||
-      o.view === "pending_review"
-  )
-);
-
-const pendingCount = computed(() => activeOrders.value.length);
-const unreadRemindCount = computed(
-  () => messages.value.filter(m => !m.read).length
-);
-const todayOrderCount = computed(
-  () =>
-    orders.value.filter(
-      o => dateKey(parseCompleteTime(o) ?? new Date(0)) === today
-    ).length
-);
-
-/** 即将截稿：活跃单且 endTime 在 24h 内 */
-const nearDeadline = computed(() =>
-  activeOrders.value.filter(o => {
-    const d = o.endTime
-      ? new Date(o.endTime.replace(/-/g, "/")).getTime()
-      : NaN;
-    if (Number.isNaN(d)) return false;
-    const diff = d - Date.now();
-    return diff > 0 && diff < 24 * 3600 * 1000;
-  })
-);
-
-/** 尚未反馈 */
-const noFeedback = computed(() =>
-  activeOrders.value.filter(o => o.stateLabel === "未反馈")
-);
-
-/** 金额未定义（命中统计状态的活跃场景：全量口径取 summary.undefinedCount） */
-const undefinedAmount = computed(() => summary.value?.undefinedCount ?? 0);
-
-/** 最近订单 ≤8 行（创建时间倒序） */
-const recentOrders = computed(() =>
-  [...orders.value]
-    .sort((a, b) => b.createTime.localeCompare(a.createTime))
-    .slice(0, 8)
-);
-
-/** 常用品类（固定四类 + 实时计数，点击跳订单页） */
-const commonCategories = computed(() => {
-  const names = ["名片", "PVC", "宣传物料", "其他"];
-  const count = (match: (n: string) => boolean) =>
-    orders.value.filter(o => match(o.productName ?? "")).length;
-  return [
-    {
-      name: "名片",
-      count: count(n => n.includes("名片") && !n.includes("PVC"))
-    },
-    { name: "PVC", count: count(n => n.includes("PVC")) },
-    {
-      name: "宣传物料",
-      count: count(n => /宣传|海报|展架|易拉宝|画册/.test(n))
-    },
-    {
-      name: "其他",
-      count: count(
-        n =>
-          n === "" ||
-          (!n.includes("名片") &&
-            !n.includes("PVC") &&
-            !/宣传|海报|展架|易拉宝|画册/.test(n))
-      )
-    }
-  ].map(c => ({ ...c, _order: names.indexOf(c.name) }));
-});
-
-// ===== 交互 =====
-
-function openDrawer(row: OrderListItem) {
-  drawerRow.value = row;
-  drawerOrderId.value = row.orderId;
-  drawerVisible.value = true;
-}
-
-/** 搜索：订单号 → 直接开 Drawer；其他 → 订单页带关键词 */
-function onSearch() {
-  const kw = keyword.value.trim();
-  if (!kw) return;
-  // 批量（含分隔符）或模糊 → 订单页；单订单号 → Drawer
-  const isSingleOrderNo = !/[\n、,，\s]/.test(kw);
-  if (isSingleOrderNo) {
-    const hit = orders.value.find(o => o.orderNo === kw || o.orderId === kw);
-    if (hit) {
-      openDrawer(hit);
-      keyword.value = "";
-      return;
-    }
-  }
-  void router.push({ path: "/order/index", query: { keyword: kw } });
-}
-
-function goIncome() {
-  void router.push("/income/index");
-}
-
-function goCategoryRules() {
-  void router.push({ path: "/category/index", query: { tab: "pricing" } });
-}
-
-function copyOrderNo(row: OrderListItem) {
-  navigator.clipboard
-    .writeText(row.orderNo)
-    .then(() => ElMessage.success(`已复制 ${row.orderNo}`))
-    .catch(() => ElMessage.warning("复制失败"));
-}
-
-function fmtTime(t: string): string {
-  // "2026-09-21 11:43:16" → "09-21 11:43"（紧凑）
-  const m = t.match(/\d{2}-\d{2} \d{2}:\d{2}/);
-  return m ? m[0] : t || "—";
-}
-</script>
-
 <template>
-  <div v-loading="loading" class="workbench">
-    <!-- 大搜索框 -->
-    <div class="search-wrap">
-      <el-input
-        v-model="keyword"
-        size="large"
-        placeholder="搜订单、客户、店铺，或粘贴多个订单号…"
-        class="big-search"
-        clearable
-        @keyup.enter="onSearch"
-      >
-        <template #prefix>🔍</template>
-        <template #append>
-          <el-button @click="onSearch">搜索</el-button>
-        </template>
-      </el-input>
-      <p class="search-tip">按 / 全局聚焦 · Enter 搜索 · 订单号直接打开详情</p>
-    </div>
-
-    <!-- 4 统计卡 -->
-    <div class="stat-row">
-      <div
-        class="stat-card"
-        @click="
-          router.push({ path: '/order/index', query: { view: 'in_progress' } })
-        "
-      >
-        <span class="stat-label">待处理</span>
-        <strong class="stat-value">{{ pendingCount }}</strong>
-      </div>
-      <div class="stat-card" @click="router.push('/expedite/index')">
-        <span class="stat-label">待催稿</span>
-        <strong class="stat-value" :class="{ warn: unreadRemindCount > 0 }">{{
-          unreadRemindCount
-        }}</strong>
-      </div>
-      <div class="stat-card">
-        <span class="stat-label">今日订单</span>
-        <strong class="stat-value">{{ todayOrderCount }}</strong>
-      </div>
-      <div class="stat-card" @click="goIncome">
-        <span class="stat-label">本月收入（我的统计）</span>
-        <strong class="stat-value">{{
-          formatAmount(summary?.income ?? null)
-        }}</strong>
-      </div>
-    </div>
-
-    <!-- 今天需要关注 -->
-    <div class="panel">
-      <h3>今天需要关注</h3>
-      <div class="focus-list">
-        <div
-          class="focus-item"
-          @click="
-            router.push({
-              path: '/order/index',
-              query: { view: 'in_progress' }
-            })
-          "
-        >
-          <el-tag type="warning" effect="plain" size="small">截稿</el-tag>
-          <b>{{ nearDeadline.length }}</b> 个订单即将截稿（24h 内）
-        </div>
-        <div
-          class="focus-item"
-          @click="
-            router.push({
-              path: '/order/index',
-              query: { view: 'in_progress' }
-            })
-          "
-        >
-          <el-tag type="info" effect="plain" size="small">反馈</el-tag>
-          <b>{{ noFeedback.length }}</b> 个订单尚未反馈
-        </div>
-        <div class="focus-item" @click="goCategoryRules">
-          <el-tag type="danger" effect="plain" size="small">金额</el-tag>
-          <b>{{ undefinedAmount }}</b> 个订单金额未定义
-          <el-button size="small" text type="primary">去设置</el-button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 最近订单 -->
-    <div class="panel">
-      <div class="panel-head">
-        <h3>最近订单</h3>
-        <el-button
-          size="small"
-          text
-          type="primary"
-          @click="router.push('/order/index')"
-        >
-          全部订单 →
-        </el-button>
-      </div>
-      <el-table
-        :data="recentOrders"
-        size="small"
-        class="compact-table"
-        @row-click="openDrawer"
-      >
-        <el-table-column
-          prop="orderNo"
-          label="订单号"
-          min-width="150"
-          show-overflow-tooltip
+  <div class="home">
+    <!-- 主视觉：Search First（§十/§十二：不套卡片） -->
+    <section class="home__hero">
+      <h1 class="home__title">设计师工作台</h1>
+      <p class="home__subtitle">今天需要处理什么？</p>
+      <div class="home__search">
+        <AppSearch
+          readonly
+          size="lg"
+          placeholder="搜订单号、店铺、客户、品类…"
+          @click="openPalette"
         />
-        <el-table-column label="品类" width="110">
-          <template #default="{ row }">{{ row.productName || "—" }}</template>
-        </el-table-column>
-        <el-table-column prop="stateLabel" label="状态" width="90" />
-        <el-table-column label="金额" width="90" align="right">
-          <template #default="{ row }">
-            <span
-              :class="{ 'amt-undefined': row.amountSource === 'undefined' }"
-            >
-              {{ formatAmount(row.effectiveAmount) }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="截稿" width="110">
-          <template #default="{ row }">{{ fmtTime(row.endTime) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="80" align="center">
-          <template #default="{ row }">
-            <el-button
-              size="small"
-              text
-              type="primary"
-              @click.stop="copyOrderNo(row)"
-              >复制</el-button
-            >
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
-    <!-- 常用品类 -->
-    <div class="panel">
-      <h3>常用品类</h3>
-      <div class="cat-row">
-        <div
-          v-for="cat in commonCategories"
-          :key="cat.name"
-          class="cat-chip"
-          @click="
-            router.push({ path: '/order/index', query: { keyword: cat.name } })
-          "
-        >
-          <span>{{ cat.name }}</span>
-          <b>{{ cat.count }} 单</b>
-        </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 订单详情 Drawer -->
-    <OrderDrawer
-      v-model="drawerVisible"
-      :order-id="drawerOrderId"
-      :order-row="drawerRow"
-    />
+    <!-- 极简横向统计（§十一：数字+小标题，无卡片边界） -->
+    <section class="home__metrics">
+      <template v-if="loading">
+        <AppSkeleton :rows="1" />
+      </template>
+      <div v-else class="home__metrics-row">
+        <AppMetric :value="stats.pendingCount" label="待处理" />
+        <AppMetric :value="stats.expediteCount" label="待催稿" />
+        <AppMetric :value="stats.todayCount" label="今日订单" />
+        <AppMetric :value="stats.monthIncome" label="本月收入" />
+      </div>
+    </section>
+
+    <!-- 今天需要关注（§十三：列表，非 Card） -->
+    <section class="home__section">
+      <h2 class="home__section-title">今天需要关注</h2>
+      <template v-if="loading">
+        <AppSkeleton :rows="3" />
+      </template>
+      <template v-else>
+        <button
+          v-for="item in attentionItems"
+          :key="item.key"
+          class="home__attention-row"
+          type="button"
+          @click="item.go()"
+        >
+          <span class="home__attention-num app-num">{{ item.count }}</span>
+          <span class="home__attention-text">{{ item.text }}</span>
+          <AppIcon
+            name="arrow-right"
+            :size="15"
+            class="home__attention-arrow"
+          />
+        </button>
+        <AppEmpty
+          v-if="attentionItems.length === 0"
+          icon="check"
+          text="今天没有需要关注的事项"
+        />
+      </template>
+    </section>
+
+    <!-- 最近订单（§十四：极简表格） -->
+    <section class="home__section">
+      <div class="home__section-head">
+        <h2 class="home__section-title">最近订单</h2>
+        <button class="home__view-all" type="button" @click="goOrders()">
+          查看全部
+          <AppIcon name="arrow-right" :size="13" />
+        </button>
+      </div>
+      <template v-if="loading">
+        <AppSkeleton :rows="4" type="table" />
+      </template>
+      <template v-else>
+        <div v-if="recentOrders.length" class="home__table">
+          <div class="home__table-head">
+            <span>订单号</span>
+            <span>品类</span>
+            <span>状态</span>
+            <span class="home__table-right">截稿</span>
+          </div>
+          <button
+            v-for="o in recentOrders"
+            :key="o.orderId"
+            class="home__table-row"
+            type="button"
+            @click="goOrders(o.orderNo)"
+          >
+            <span class="app-mono home__order-no">{{ o.orderNo }}</span>
+            <span class="home__cell-muted">{{
+              o.productName || o.taskType || "—"
+            }}</span>
+            <span><AppStatus :label="o.stateLabel" /></span>
+            <span class="home__cell-muted home__table-right app-num">
+              {{ fmtDeadline(o.endTime) }}
+            </span>
+          </button>
+        </div>
+        <AppEmpty v-else icon="inbox" text="暂无订单" />
+      </template>
+    </section>
   </div>
 </template>
 
+<script setup lang="ts">
+/**
+ * 工作台首页（Phase UI-R1 §九~§十五）
+ * Search First + 极简统计 + 关注列表 + 最近订单；无统计卡堆叠、无图表
+ * 数据一律走 Domain Service（§四十五：无任何硬编码假数据）
+ */
+import { computed, inject, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import {
+  AppIcon,
+  AppMetric,
+  AppSearch,
+  AppSkeleton,
+  AppStatus,
+  AppEmpty
+} from "@/components/ui";
+import { fetchOrders, type OrderListItem } from "@/service/order";
+import { fetchExpediteMessages } from "@/service/expedite";
+import { getIncomeDashboard } from "@/service/income";
+import { fetchGoodsCatalog, type GoodsItem } from "@/service/category";
+import { listRules } from "@/service/pricing/pricing-rule-store";
+
+defineOptions({ name: "Welcome" });
+
+const router = useRouter();
+const openPalette = inject<() => void>("openCommandPalette");
+
+const loading = ref(true);
+const allOrders = ref<OrderListItem[]>([]);
+const expediteUnread = ref(0);
+const monthIncome = ref("¥—");
+const catalog = ref<GoodsItem[]>([]);
+
+/** 进行中+待接单 = 「待处理」口径 */
+const activeOrders = computed(() =>
+  allOrders.value.filter(
+    o => o.view === "in_progress" || o.view === "pending_accept"
+  )
+);
+
+const stats = computed(() => ({
+  pendingCount: activeOrders.value.length,
+  expediteCount: expediteUnread.value,
+  todayCount: allOrders.value.filter(o => isToday(o.createTime)).length,
+  monthIncome: monthIncome.value
+}));
+
+interface AttentionItem {
+  key: string;
+  count: number;
+  text: string;
+  go: () => void;
+}
+
+const attentionItems = computed<AttentionItem[]>(() => {
+  const items: AttentionItem[] = [];
+  const dueSoon = activeOrders.value.filter(o =>
+    isDueWithin24h(o.endTime)
+  ).length;
+  const noFeedback = allOrders.value.filter(
+    o => o.stateLabel === "未反馈"
+  ).length;
+  const undefinedGoods = countUndefinedGoods();
+  if (dueSoon > 0)
+    items.push({
+      key: "due",
+      count: dueSoon,
+      text: "个订单将在 24h 内截稿",
+      go: () => goOrders()
+    });
+  if (noFeedback > 0)
+    items.push({
+      key: "feedback",
+      count: noFeedback,
+      text: "个订单尚未反馈",
+      go: () => goOrders()
+    });
+  if (undefinedGoods > 0)
+    items.push({
+      key: "amount",
+      count: undefinedGoods,
+      text: "个商品金额未设置",
+      go: () => router.push("/category/index")
+    });
+  return items;
+});
+
+/** 最近订单：截稿时间升序（最紧急在前），取 5 条 */
+const recentOrders = computed(() =>
+  [...activeOrders.value]
+    .sort((a, b) => String(a.endTime).localeCompare(String(b.endTime)))
+    .slice(0, 5)
+);
+
+// ── 时间工具（展示层聚合，长文 §四十七 前端聚合原则） ──
+function isToday(timeStr: string): boolean {
+  if (!timeStr) return false;
+  const d = new Date(timeStr.replace(/-/g, "/"));
+  if (Number.isNaN(d.getTime())) return false;
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
+function isDueWithin24h(endTime: string): boolean {
+  if (!endTime) return false;
+  const d = new Date(endTime.replace(/-/g, "/"));
+  if (Number.isNaN(d.getTime())) return false;
+  const now = Date.now();
+  return d.getTime() > now && d.getTime() - now <= 24 * 3600 * 1000;
+}
+
+function fmtDeadline(endTime: string): string {
+  if (!endTime) return "—";
+  const d = new Date(endTime.replace(/-/g, "/"));
+  if (Number.isNaN(d.getTime())) return endTime;
+  const now = new Date();
+  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  if (d.toDateString() === now.toDateString()) return hm;
+  return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${hm}`;
+}
+
+/** 商品维度未设置金额：系统金额未定义 且 无个人规则（§三十七） */
+function countUndefinedGoods(): number {
+  const rules = listRules();
+  const ruleKeys = new Set(
+    rules.map(r => `${r.goodsId}|${r.subGoodsId ?? ""}`)
+  );
+  return catalog.value.filter(
+    g =>
+      g.legacyAmount === null && !ruleKeys.has(`${g.goodsId}|${g.subGoodsId}`)
+  ).length;
+}
+
+function goOrders(keyword?: string) {
+  router.push(
+    keyword ? { path: "/order/index", query: { keyword } } : "/order/index"
+  );
+}
+
+onMounted(async () => {
+  try {
+    const [ordersRes, messages, income, goods] = await Promise.all([
+      fetchOrders({ view: "all", page: 1, pageSize: 100 }).catch(() => null),
+      fetchExpediteMessages().catch(() => []),
+      getIncomeDashboard("month").catch(() => null),
+      fetchGoodsCatalog().catch(() => [])
+    ]);
+    allOrders.value = ordersRes?.list ?? [];
+    expediteUnread.value = messages.filter(m => !m.read).length;
+    monthIncome.value = income
+      ? formatCny(income.summary.income)
+      : formatCny(0);
+    catalog.value = goods;
+  } finally {
+    loading.value = false;
+  }
+});
+
+function formatCny(n: number): string {
+  return `¥${n.toLocaleString("zh-CN", { maximumFractionDigits: 2 })}`;
+}
+</script>
+
 <style scoped>
-.workbench {
-  max-width: 1080px;
-  padding: 16px 20px 32px;
-  margin: 0 auto;
-}
-
-.search-wrap {
-  margin-bottom: 16px;
-}
-
-.big-search {
-  max-width: 640px;
-}
-
-.search-tip {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-}
-
-.stat-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.stat-card {
-  padding: 14px 16px;
-  cursor: pointer;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  transition: box-shadow 0.15s;
-}
-
-.stat-card:hover {
-  box-shadow: var(--el-box-shadow-light);
-}
-
-.stat-label {
-  display: block;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.stat-value {
-  display: block;
-  margin-top: 6px;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.stat-value.warn {
-  color: var(--el-color-warning);
-}
-
-.panel {
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-}
-
-.panel h3 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.panel-head {
+.home {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+}
+
+/* ── 主视觉 ── */
+.home__hero {
+  display: flex;
+  flex-direction: column;
   align-items: center;
+  padding-top: var(--space-6);
+  text-align: center;
+}
+
+.home__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--app-text);
+  letter-spacing: 0.01em;
+}
+
+.home__subtitle {
+  margin: var(--space-1) 0 var(--space-6);
+  font-size: 14px;
+  color: var(--app-text-muted);
+}
+
+.home__search {
+  width: 100%;
+  max-width: 560px;
+  cursor: pointer;
+}
+
+.home__search :deep(.app-search) {
+  border-radius: var(--radius-lg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+}
+
+.home__search :deep(.app-search__input--lg) {
+  cursor: pointer;
+}
+
+/* ── 统计行：无卡片边界（§十一） ── */
+.home__metrics {
+  display: flex;
+  justify-content: center;
+}
+
+.home__metrics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-8);
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.home__metrics-row :deep(.app-metric) {
+  min-width: 96px;
+}
+
+/* ── 分区 ── */
+.home__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home__section-head {
+  display: flex;
+  align-items: baseline;
   justify-content: space-between;
 }
 
-.panel-head h3 {
+.home__section-title {
   margin: 0;
-}
-
-.focus-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.focus-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 8px 10px;
   font-size: 13px;
-  cursor: pointer;
-  border-radius: 6px;
+  font-weight: 600;
+  color: var(--app-text-secondary);
+  letter-spacing: 0.02em;
 }
 
-.focus-item:hover {
-  background: var(--el-fill-color-light);
-}
-
-.compact-table {
-  width: 100%;
-  cursor: pointer;
-}
-
-.amt-undefined {
-  font-style: italic;
-  color: var(--el-color-warning);
-}
-
-.cat-row {
-  display: flex;
-  gap: 12px;
-}
-
-.cat-chip {
-  display: flex;
-  flex-direction: column;
+.home__view-all {
+  display: inline-flex;
   gap: 4px;
-  padding: 12px 20px;
+  align-items: center;
+  padding: 2px 4px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--app-text-muted);
   cursor: pointer;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  transition: color 140ms ease;
 }
 
-.cat-chip:hover {
-  border-color: var(--el-color-primary-light-5);
+.home__view-all:hover {
+  color: var(--app-text);
 }
 
-.cat-chip span {
+/* ── 关注列表（§十三） ── */
+.home__attention-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-3);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background-color 140ms ease;
+}
+
+.home__attention-row:hover {
+  background: var(--app-surface-hover);
+}
+
+.home__attention-num {
+  min-width: 28px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--app-text);
+  text-align: right;
+}
+
+.home__attention-text {
+  flex: 1;
+  font-size: 13.5px;
+  color: var(--app-text-secondary);
+}
+
+.home__attention-arrow {
+  color: var(--app-text-faint);
+}
+
+.home__attention-row:hover .home__attention-arrow {
+  color: var(--app-text-secondary);
+}
+
+/* ── 最近订单极简表（§十四） ── */
+.home__table {
+  display: flex;
+  flex-direction: column;
+}
+
+.home__table-head,
+.home__table-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.9fr 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-3);
+  text-align: left;
+}
+
+.home__table-head {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--app-text-faint);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--app-border);
+}
+
+.home__table-row {
+  font-family: inherit;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background-color 140ms ease;
+}
+
+.home__table-row:hover {
+  background: var(--app-surface-hover);
+}
+
+.home__order-no {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 13px;
+  color: var(--app-text);
+  white-space: nowrap;
 }
 
-.cat-chip b {
-  font-size: 15px;
+.home__cell-muted {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  color: var(--app-text-secondary);
+  white-space: nowrap;
+}
+
+.home__table-right {
+  text-align: right;
 }
 </style>
