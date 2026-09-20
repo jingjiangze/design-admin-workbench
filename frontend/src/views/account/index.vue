@@ -1,236 +1,214 @@
-<script setup lang="ts">
-/**
- * 账户页（P1B-06b 补充：金额规则导入/导出，docs/PRICING_RULE_SPEC.md §8）
- *
- * 账户信息卡 + 金额规则管理（导出 JSON 下载 / 导入预览确认生效）。
- * 规则存储经 pricingRuleStore（key=pricingRules:<userIdentity>）。
- */
-import { computed, ref } from "vue";
-import { ElMessage } from "element-plus";
-import {
-  listRules,
-  exportRules,
-  buildImportPreview,
-  commitImport,
-  getUserIdentity
-} from "@/service/pricing/pricing-rule-store";
-import type { ImportPreview } from "@/service/pricing/pricing-rule-types";
-import { formatAmount } from "@/service/pricing/amount-resolution";
-
-defineOptions({
-  name: "Account"
-});
-
-const rules = computed(() => listRules());
-const importJson = ref("");
-const preview = ref<ImportPreview | null>(null);
-
-function exportJson() {
-  if (rules.value.length === 0) {
-    ElMessage.info("当前没有金额规则可导出");
-    return;
-  }
-  const blob = new Blob([exportRules()], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `pricing-rules-${getUserIdentity()}-${new Date()
-    .toISOString()
-    .slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  ElMessage.success(`已导出 ${rules.value.length} 条规则`);
-}
-
-function onPreview() {
-  if (!importJson.value.trim()) {
-    ElMessage.info("请先粘贴导出的 JSON 内容");
-    return;
-  }
-  preview.value = buildImportPreview(importJson.value);
-  ElMessage.info(
-    `发现 ${preview.value.total} 条：新增 ${preview.value.added.length} / 覆盖 ${preview.value.updated.length} / 跳过 ${preview.value.skipped.length}`
-  );
-}
-
-function onCommit() {
-  if (!preview.value) return;
-  const r = commitImport(preview.value);
-  preview.value = null;
-  importJson.value = "";
-  ElMessage.success(
-    `导入完成：新增 ${r.added} / 覆盖 ${r.updated} / 跳过 ${r.skipped}`
-  );
-}
-</script>
-
 <template>
-  <div class="account-page">
-    <!-- 账户信息 -->
-    <div class="panel">
-      <h3>账户信息</h3>
-      <div class="info-row">
-        <span class="label">当前身份</span>
-        <span>{{ getUserIdentity() }}（Phase 1 本地模式）</span>
+  <div class="account">
+    <div class="account__head">
+      <h1 class="account__title">账户</h1>
+    </div>
+
+    <div class="account__card">
+      <div class="account__avatar">{{ avatarText }}</div>
+      <div class="account__info">
+        <div class="account__name">{{ userIdentity }}</div>
+        <div class="account__meta">
+          数据模式：
+          <b>{{
+            legacyEnabled ? "真实数据（旧系统网关）" : "演示数据（Mock）"
+          }}</b>
+        </div>
       </div>
-      <div class="info-row">
-        <span class="label">规则存储</span>
-        <span
-          >浏览器本地（pricingRules:{{ getUserIdentity() }}），Phase 2
-          迁移服务器账号体系</span
-        >
-      </div>
-      <div class="info-row">
-        <span class="label">金额规则</span>
-        <span>{{ rules.length }} 条</span>
+      <div class="account__actions">
+        <AppButton variant="ghost" size="sm" icon="logout" @click="logout">
+          退出登录
+        </AppButton>
       </div>
     </div>
 
-    <!-- 金额规则管理 -->
-    <div class="panel">
-      <h3>金额规则管理</h3>
-      <div v-if="rules.length > 0" class="rule-summary">
-        <div v-for="r in rules" :key="r.id" class="rule-line">
-          <span>{{ r.productName }}</span>
-          <span class="mono">{{ r.goodsId }}</span>
-          <b>{{ formatAmount(r.amount) }}</b>
-        </div>
-      </div>
-      <p v-else class="hint">暂无自定义规则——在"品类 → 金额规则"中设置。</p>
+    <section class="account__section">
+      <h2 class="account__section-title">我的数据</h2>
+      <button class="account__row" type="button" @click="goCategory">
+        <span>金额规则</span>
+        <span class="account__row-sub app-num">
+          {{ ruleCount }} 条 · 在「品类」页设置
+        </span>
+        <AppIcon name="arrow-right" :size="14" class="account__row-arrow" />
+      </button>
+      <button class="account__row" type="button" @click="goCategory">
+        <span>规则导入 / 导出</span>
+        <span class="account__row-sub">JSON 文件</span>
+        <AppIcon name="arrow-right" :size="14" class="account__row-arrow" />
+      </button>
+    </section>
 
-      <div class="import-section">
-        <h4>导入金额规则</h4>
-        <el-input
-          v-model="importJson"
-          type="textarea"
-          :rows="6"
-          placeholder='粘贴导出的 JSON，如 [{"goodsid":"1717812924","amount":8}]'
-        />
-        <div class="import-actions">
-          <el-button @click="onPreview">解析预览</el-button>
-          <el-button @click="exportJson">导出金额规则</el-button>
-        </div>
-        <div v-if="preview" class="preview-box">
-          <p>
-            发现 <b>{{ preview.total }}</b> 条：新增
-            <b>{{ preview.added.length }}</b> / 覆盖
-            <b>{{ preview.updated.length }}</b> / 跳过
-            <b>{{ preview.skipped.length }}</b>
-          </p>
-          <div
-            v-for="(u, i) in preview.updated"
-            :key="'u' + i"
-            class="preview-line"
-          >
-            覆盖：{{ u.displayName || u.goodsid }}
-            {{ formatAmount(u.previousAmount) }} → {{ formatAmount(u.amount) }}
-          </div>
-          <div
-            v-for="(s, i) in preview.skipped"
-            :key="'s' + i"
-            class="preview-line skip"
-          >
-            跳过：{{ s.goodsid }}（{{ s.reason }}）
-          </div>
-          <el-button type="primary" size="small" @click="onCommit"
-            >确认导入</el-button
-          >
-        </div>
-      </div>
-    </div>
+    <section class="account__section">
+      <h2 class="account__section-title">说明</h2>
+      <p class="account__note">
+        我的统计金额仅用于本工作台的个人收入统计，不会修改旧系统任何订单数据。
+      </p>
+    </section>
   </div>
 </template>
 
+<script setup lang="ts">
+/**
+ * 账户页（Phase UI-R1 极简化）
+ * 身份 + 数据模式 + 规则统计 + 登出；导入/导出已并入品类页（避免双入口）
+ */
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { AppButton, AppIcon } from "@/components/ui";
+import {
+  getUserIdentity,
+  listRules
+} from "@/service/pricing/pricing-rule-store";
+import { isLegacyRealEnabled } from "@/service/gateway";
+import { removeToken } from "@/utils/auth";
+
+defineOptions({ name: "AccountInfo" });
+
+const router = useRouter();
+
+const userIdentity = ref(getUserIdentity() || "设计师");
+const ruleCount = ref(0);
+const legacyEnabled = isLegacyRealEnabled();
+
+const avatarText = computed(() =>
+  (userIdentity.value || "设").slice(0, 1).toUpperCase()
+);
+
+onMounted(() => {
+  ruleCount.value = listRules().length;
+});
+
+function goCategory() {
+  router.push("/category/index");
+}
+
+async function logout() {
+  try {
+    await ElMessageBox.confirm("确定要退出登录吗？", "退出登录", {
+      confirmButtonText: "退出",
+      cancelButtonText: "取消",
+      type: "warning"
+    });
+  } catch {
+    return;
+  }
+  removeToken();
+  ElMessage.success("已退出登录");
+  router.push("/login");
+}
+</script>
+
 <style scoped>
-.account-page {
-  max-width: 760px;
-  padding: 16px 20px;
+.account {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  max-width: 560px;
 }
 
-.panel {
-  padding: 14px 16px;
-  margin-bottom: 16px;
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-}
-
-.panel h3 {
-  margin: 0 0 10px;
-  font-size: 14px;
+.account__title {
+  margin: 0;
+  font-size: 18px;
   font-weight: 600;
+  color: var(--app-text);
 }
 
-.panel h4 {
-  margin: 16px 0 8px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-}
-
-.info-row {
+.account__card {
   display: flex;
-  gap: 12px;
-  padding: 6px 0;
-  font-size: 13px;
-}
-
-.label {
-  width: 84px;
-  color: var(--el-text-color-secondary);
-}
-
-.rule-summary {
-  margin-bottom: 10px;
-}
-
-.rule-line {
-  display: flex;
-  gap: 12px;
+  gap: var(--space-4);
   align-items: center;
-  padding: 5px 0;
-  font-size: 13px;
-  border-bottom: 1px dashed var(--el-border-color-lighter);
+  padding: var(--space-4);
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
 }
 
-.rule-line b {
-  margin-left: auto;
-}
-
-.mono {
-  font-family: monospace;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.hint {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-}
-
-.import-actions {
+.account__avatar {
   display: flex;
-  gap: 10px;
-  margin-top: 10px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--app-text);
+  background: var(--app-accent-soft);
+  border-radius: 50%;
 }
 
-.preview-box {
-  padding: 10px 12px;
-  margin-top: 12px;
-  font-size: 13px;
-  background: var(--el-fill-color-extra-light);
-  border-radius: 6px;
+.account__info {
+  flex: 1;
+  min-width: 0;
 }
 
-.preview-box p {
-  margin: 0 0 6px;
+.account__name {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--app-text);
 }
 
-.preview-line {
-  padding: 2px 0;
+.account__meta {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--app-text-muted);
+}
+
+.account__meta b {
+  font-weight: 500;
+  color: var(--app-text-secondary);
+}
+
+.account__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.account__section-title {
+  margin: 0;
   font-size: 12px;
+  font-weight: 600;
+  color: var(--app-text-faint);
+  letter-spacing: 0.04em;
 }
 
-.preview-line.skip {
-  color: var(--el-text-color-placeholder);
+.account__row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-3) var(--space-2);
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background-color 140ms ease;
+}
+
+.account__row:hover {
+  background: var(--app-surface-hover);
+}
+
+.account__row-sub {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--app-text-faint);
+}
+
+.account__row-arrow {
+  color: var(--app-text-faint);
+}
+
+.account__note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--app-text-muted);
 }
 </style>
