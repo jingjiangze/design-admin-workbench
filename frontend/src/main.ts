@@ -7,6 +7,11 @@ import { MotionPlugin } from "@vueuse/motion";
 import { createApp, type Directive } from "vue";
 import { useElementPlus } from "@/plugins/elementPlus";
 import { injectResponsiveStorage } from "@/utils/responsive";
+import { useTheme } from "@/hooks/useTheme";
+
+// 主题启动即应用：不依赖任何页面 chunk 的懒加载时机
+// （index.html 防闪烁脚本已先行处理首帧，这里补注册 system 监听与单例状态）
+useTheme();
 
 import Table from "@pureadmin/table";
 // import PureDescriptions from "@pureadmin/descriptions";
