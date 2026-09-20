@@ -1,0 +1,27 @@
+# ===== 敏感数据（绝不入库）=====
+# 抓包/取证文件可能包含 Cookie、Token、Session、账号信息
+*.har
+.env
+.env.*
+*.pem
+*.key
+cookies.txt
+cookie*.txt
+tokens.json
+research/raw/session/
+
+# ===== OS / IDE =====
+Thumbs.db
+.DS_Store
+.idea/
+.vscode/
+
+# ===== Node（后续前端工程使用）=====
+node_modules/
+dist/
+*.log
+npm-debug.log*
+.vite/
+
+# ===== WorkBuddy 本地状态 =====
+.workbuddy/
