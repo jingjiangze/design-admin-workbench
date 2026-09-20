@@ -24,7 +24,21 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
       port: VITE_PORT,
       host: "0.0.0.0",
       // 本地跨域代理 https://cn.vitejs.dev/config/server-options.html#server-proxy
-      proxy: {},
+      proxy: {
+        // P1A-06 Session Proof：旧系统接口经 dev proxy 同源化。
+        // 旧系统为纯 SESSION Cookie 会话（无 Token/CORS 头），浏览器侧直连跨源
+        // 会被 SameSite 拦截；proxy 使请求与页面同源（localhost:8848），
+        // Set-Cookie 由 Node 侧转发，浏览器正常持有会话。
+        // 仅开发环境生效；生产部署需 Nginx 同源反代（同配置语义）。
+        "/chsjs": {
+          target: "https://d.jndx.net",
+          changeOrigin: true,
+          secure: false,
+          // [VERIFIED] 旧系统 Set-Cookie 带 Domain=d.jndx.net，与 localhost 不匹配
+          // 会被浏览器拒收；重写为 host-only Cookie（SESSION, HttpOnly, SameSite=Lax）
+          cookieDomainRewrite: true
+        }
+      },
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布
       warmup: {
         clientFiles: ["./index.html", "./src/{views,components}/*"]
