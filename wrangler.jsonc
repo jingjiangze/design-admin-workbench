@@ -82,6 +82,23 @@
         "LEGACY_BASE_URL": "https://d.jndx.net"
       }
     },
+    // staging：真实旧系统集成测试（长文 §四/§五：Legacy=ON + Mock=OFF，
+    // 必须独立 KV 防 Session 污染；D1 复用 preview 库）。
+    // ⚠️ kv id 待 CF-REAL-02 执行 `wrangler kv namespace create SESSIONS --env staging`
+    //    后回填（需 API token）；回填前 `--env staging` 部署会因无效 id 失败。
+    "staging": {
+      "kv_namespaces": [
+        {
+          "binding": "SESSIONS",
+          // [PENDING] CF-REAL-02：staging 独立 KV id 待回填
+          "id": "STAGING_KV_ID_PENDING"
+        }
+      ],
+      "vars": {
+        "LEGACY_API_ENABLED": "true",
+        "LEGACY_BASE_URL": "https://d.jndx.net"
+      }
+    },
     // production：legacy=on（由 Worker env 控制，前端无法篡改，长文 §四十三）
     "production": {
       "vars": {
