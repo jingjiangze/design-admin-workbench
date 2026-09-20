@@ -1,0 +1,116 @@
+{
+  "result": true,
+  "message": "操作成功",
+  "data": {
+    "list": [
+      {
+        "goodsid": "1717812900",
+        "subGoodsid": "",
+        "goodsname": "名片",
+        "subGoodsname": "",
+        "group": "名片卡类",
+        "keywords": "名片 名片卡 card 普通名片",
+        "legacyAmount": 5
+      },
+      {
+        "goodsid": "1717812924",
+        "subGoodsid": "1717812925",
+        "goodsname": "名片",
+        "subGoodsname": "PVC名片",
+        "group": "名片卡类",
+        "keywords": "PVC PVC名片 塑料名片",
+        "legacyAmount": null
+      },
+      {
+        "goodsid": "1717812926",
+        "subGoodsid": "",
+        "goodsname": "名片",
+        "subGoodsname": "特种纸名片",
+        "group": "名片卡类",
+        "keywords": "特种纸 特种纸名片 高档名片",
+        "legacyAmount": 8
+      },
+      {
+        "goodsid": "1717812927",
+        "subGoodsid": "",
+        "goodsname": "名片",
+        "subGoodsname": "明信片",
+        "group": "名片卡类",
+        "keywords": "明信片 postcard 贺卡",
+        "legacyAmount": 4
+      },
+      {
+        "goodsid": "1717812928",
+        "subGoodsid": "",
+        "goodsname": "名片",
+        "subGoodsname": "铭牌",
+        "group": "名片卡类",
+        "keywords": "铭牌 名牌 胸牌",
+        "legacyAmount": null
+      },
+      {
+        "goodsid": "1717812940",
+        "subGoodsid": "",
+        "goodsname": "海报",
+        "subGoodsname": "",
+        "group": "宣传物料",
+        "keywords": "海报 poster 张贴画",
+        "legacyAmount": 15
+      },
+      {
+        "goodsid": "1717812930",
+        "subGoodsid": "",
+        "goodsname": "宣传单",
+        "subGoodsname": "",
+        "group": "宣传物料",
+        "keywords": "宣传单 传单 单页 dm",
+        "legacyAmount": 12
+      },
+      {
+        "goodsid": "1717812970",
+        "subGoodsid": "",
+        "goodsname": "易拉宝",
+        "subGoodsname": "",
+        "group": "宣传物料",
+        "keywords": "易拉宝 展架 x展架 门型展架",
+        "legacyAmount": 20
+      },
+      {
+        "goodsid": "1717812999",
+        "subGoodsid": "",
+        "goodsname": "展架",
+        "subGoodsname": "KT板展架",
+        "group": "宣传物料",
+        "keywords": "kt板 kt展架 板展示",
+        "legacyAmount": null
+      },
+      {
+        "goodsid": "1717812950",
+        "subGoodsid": "",
+        "goodsname": "画册",
+        "subGoodsname": "",
+        "group": "包装印刷",
+        "keywords": "画册 册子 图册",
+        "legacyAmount": 10
+      },
+      {
+        "goodsid": "1717812998",
+        "subGoodsid": "",
+        "goodsname": "特殊卡",
+        "subGoodsname": "",
+        "group": "其他",
+        "keywords": "特殊卡 异形卡 工艺卡",
+        "legacyAmount": null
+      },
+      {
+        "goodsid": "1717812960",
+        "subGoodsid": "",
+        "goodsname": "明信片",
+        "subGoodsname": "凸版明信片",
+        "group": "其他",
+        "keywords": "明信片 凸版 凹凸",
+        "legacyAmount": 6
+      }
+    ]
+  }
+}
