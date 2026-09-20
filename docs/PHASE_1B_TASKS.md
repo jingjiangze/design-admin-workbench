@@ -72,3 +72,10 @@
 3. **状态机不下放 UI**：UI 只见 6 视图（全部/待接单/进行中/待审核/已完成/风险），state/needsstate/manuscriptdesignstatus/checkstatus 只在 Adapter/Domain。
 4. **视觉**：白色/浅灰/深色文字/单一品牌色/少阴影/细边框/紧凑表格/大搜索框——像现代 SaaS，不像 ERP。
 5. **Git**：一个逻辑任务一个 commit → push → remote HEAD 复验；禁 force push。
+
+## Phase CF-0 追加（2026-09-20 Cloudflare 化）
+
+Phase 1B 收尾后架构方向变更：**Runtime = Cloudflare**（详见 docs/CLOUDFLARE_ARCHITECTURE.md）。
+对本文档的影响：前端 Real 通道从"vite proxy 直连旧系统"改为"/api/* → CF Worker 网关"；
+`frontend/src` ESLint 全域禁 /chsjs 与 *.do（不再豁免 legacy 目录）；Mock 通道不变。
+本阶段 21 项验收结论保持有效（金额模型/映射纯函数/测试全部沿用）。

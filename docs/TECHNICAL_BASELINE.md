@@ -2,6 +2,7 @@
 
 > 状态：**DEVELOPMENT READY** — 2026-09-20 基于 4 候选实际工程审计定稿（审计数据见 MARKET_OPTIONS.md §2，[VERIFIED]）。
 > 原则：结论来自本轮实测，非沿用早期推荐。
+> **Phase CF-0 更新：Runtime = Cloudflare（Workers + Static Assets + KV + D1 + Turnstile）。本机不再承担生产运行/部署。详见 CLOUDFLARE_ARCHITECTURE.md。**
 
 ## 1. 选型结论
 
