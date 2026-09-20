@@ -33,8 +33,8 @@
   "kv_namespaces": [
     {
       "binding": "SESSIONS",
-      // TODO: npx wrangler kv namespace create SESSIONS 后回填
-      "id": "00000000000000000000000000000000"
+      // [VERIFIED] 2026-09-20 wrangler kv namespace create SESSIONS
+      "id": "b599ff7cd7324a588f99cf08e0281a02"
     }
   ],
 
@@ -69,7 +69,8 @@
       "kv_namespaces": [
         {
           "binding": "SESSIONS",
-          "id": "00000000000000000000000000000000"
+          // [VERIFIED] 2026-09-20 wrangler kv namespace create SESSIONS --preview
+          "id": "dc06e47f12ef4cdb87065717bde21450"
         }
       ],
       "vars": {
