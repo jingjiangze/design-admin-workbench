@@ -84,23 +84,53 @@
     },
     // staging：真实旧系统集成测试（长文 §四/§五：Legacy=ON + Mock=OFF，
     // 必须独立 KV 防 Session 污染；D1 复用 preview 库）。
-    // ⚠️ kv id 待 CF-REAL-02 执行 `wrangler kv namespace create SESSIONS --env staging`
-    //    后回填（需 API token）；回填前 `--env staging` 部署会因无效 id 失败。
+    // ⚠️ wrangler 4 的 d1_databases/kv_namespaces 不被环境继承（实测警告），
+    //    每个 --env 环境必须显式声明资源绑定。
     "staging": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "design-workbench-preview",
+          // [VERIFIED] 复用 preview 库（长文 §四；0001 迁移已应用）
+          "database_id": "c7801299-4c14-430c-bd02-6c89acb664a1",
+          "migrations_dir": "migrations"
+        }
+      ],
       "kv_namespaces": [
         {
           "binding": "SESSIONS",
-          // [PENDING] CF-REAL-02：staging 独立 KV id 待回填
-          "id": "STAGING_KV_ID_PENDING"
+          // [VERIFIED] 2026-09-20 CF-REAL-02：API 创建 title=design-admin-workbench-staging-SESSIONS
+          "id": "c95b950e3a1541949337665b4cc6bb2b"
         }
       ],
       "vars": {
         "LEGACY_API_ENABLED": "true",
-        "LEGACY_BASE_URL": "https://d.jndx.net"
+        "LEGACY_BASE_URL": "https://d.jndx.net",
+        // Turnstile：staging 用 Cloudflare 官方 dummy 测试键（文档公开、恒通过，仅集成测试用；
+        // production 必须换 dashboard 创建的真实 widget 键，长文 §二十六）
+        "TURNSTILE_SITE_KEY": "1x00000000000000000000AA"
       }
     },
-    // production：legacy=on（由 Worker env 控制，前端无法篡改，长文 §四十三）
+    // production：legacy=on（由 Worker env 控制，前端无法篡改，长文 §四十三）。
+    // 资源同顶层（KV SESSIONS + D1 design-workbench）——wrangler 4 不继承，
+    // 必须显式声明（2026-09-20 staging 部署警告实测）。
     "production": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "design-workbench",
+          // [VERIFIED] 2026-09-20 wrangler d1 create design-workbench（region APAC）
+          "database_id": "c39661c8-db45-490b-ae24-7ef32029ba1d",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "SESSIONS",
+          // [VERIFIED] 2026-09-20 wrangler kv namespace create SESSIONS
+          "id": "b599ff7cd7324a588f99cf08e0281a02"
+        }
+      ],
       "vars": {
         "LEGACY_API_ENABLED": "true",
         "LEGACY_BASE_URL": "https://d.jndx.net"

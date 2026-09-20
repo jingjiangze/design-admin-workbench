@@ -45,6 +45,17 @@ export default {
         });
       }
 
+      // ── 公开配置（无认证）：登录页读取 Turnstile site key 与运行模式 ──
+      if (path === "/api/config" && request.method === "GET") {
+        return jsonOk({
+          result: true,
+          data: {
+            mode: isLegacyEnabled(env) ? "legacy" : "mock",
+            turnstileSiteKey: env.TURNSTILE_SITE_KEY ?? null
+          }
+        });
+      }
+
       // ── 认证（login 无会话要求；logout/me 内部自行校验） ──
       if (path.startsWith("/api/auth/")) {
         return await handleAuth(env, request, path);
