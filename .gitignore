@@ -3,6 +3,10 @@
 *.har
 .env
 .env.*
+# frontend 模板自带 env 仅含编译期常量（端口/路径/CDN 开关），已人工审查无敏感数据；
+# 凭据（账号/密码/Cookie/Token）仍禁止写入任何 env 文件
+!frontend/.env
+!frontend/.env.*
 *.pem
 *.key
 cookies.txt
