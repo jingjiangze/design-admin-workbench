@@ -9,6 +9,8 @@ cookies.txt
 cookie*.txt
 tokens.json
 research/raw/session/
+# 取证临时工作目录（HTML/JS/脚本可能含凭据与会话数据）
+.tmp-evidence/
 
 # ===== OS / IDE =====
 Thumbs.db
