@@ -82,9 +82,11 @@ export function getRule(
   goodsId: string,
   subGoodsId?: string
 ): PricingRule | null {
-  return listRules().find(
-    r => ruleKey(r.goodsId, r.subGoodsId) === ruleKey(goodsId, subGoodsId)
-  ) ?? null;
+  return (
+    listRules().find(
+      r => ruleKey(r.goodsId, r.subGoodsId) === ruleKey(goodsId, subGoodsId)
+    ) ?? null
+  );
 }
 
 /** upsert：新增或覆盖（恢复系统金额请用 clearRule） */

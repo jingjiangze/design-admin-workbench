@@ -23,19 +23,43 @@ export const DEFAULT_RANGE_PRESETS: Record<
   today: () => {
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const to = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
     return { from, to };
   },
   week: () => {
     const now = new Date();
     const from = startOfWeek(now);
-    const to = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const to = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
     return { from, to };
   },
   month: () => {
     const now = new Date();
     const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const to = new Date(
+      now.getFullYear(),
+      now.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    );
     return { from, to };
   }
 };
@@ -67,7 +91,9 @@ export function enrichScope(
     to: range.to
   });
   const undefinedOrders = getUndefinedAmountOrders(enriched, policy);
-  const overrideHitCount = enriched.filter(o => o.amountSource === "override").length;
+  const overrideHitCount = enriched.filter(
+    o => o.amountSource === "override"
+  ).length;
   return {
     range: rangeKey,
     policy,

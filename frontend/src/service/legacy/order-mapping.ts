@@ -5,7 +5,10 @@
 import type { LegacyOrderListItem } from "./types";
 import type { OrderListItem } from "../types";
 import { mapStateToView } from "../types";
-import { parseLegacyAmount, baselineResolution } from "../pricing/amount-resolution";
+import {
+  parseLegacyAmount,
+  baselineResolution
+} from "../pricing/amount-resolution";
 
 /** 列表查询参数（state 传旧系统过滤枚举 ""/1..8/11/12，keyword 走服务端模糊） */
 export interface LegacyOrderListParams {

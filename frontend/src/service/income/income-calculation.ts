@@ -49,13 +49,24 @@ export function resolveOrderIncome(
 ): { mine: AmountResolution; system: number | null } {
   const mine = resolveOrderAmount(order, rules);
   if (!policy.useOverrideAmount) {
-    return { mine: { ...mine, effectiveAmount: order.legacyAmount, overrideAmount: null, amountSource: order.legacyAmount === null ? "undefined" : "legacy" }, system: order.legacyAmount };
+    return {
+      mine: {
+        ...mine,
+        effectiveAmount: order.legacyAmount,
+        overrideAmount: null,
+        amountSource: order.legacyAmount === null ? "undefined" : "legacy"
+      },
+      system: order.legacyAmount
+    };
   }
   return { mine, system: order.legacyAmount };
 }
 
 /** 订单是否命中统计状态 */
-export function isIncluded(order: OrderListItem, policy: IncomePolicy): boolean {
+export function isIncluded(
+  order: OrderListItem,
+  policy: IncomePolicy
+): boolean {
   return order.view !== null && policy.includedStatuses.includes(order.view);
 }
 
@@ -82,7 +93,11 @@ export function orderContribution(
         undefinedOrder: true
       };
     }
-    return { included: true, amount: order.legacyAmount, undefinedOrder: false };
+    return {
+      included: true,
+      amount: order.legacyAmount,
+      undefinedOrder: false
+    };
   }
   const r = resolveOrderAmount(order, rules);
   if (r.amountSource === "undefined") {
@@ -156,7 +171,11 @@ export function startOfWeek(d: Date): Date {
 }
 
 /** 日期区间过滤（含端点；任一端为 null = 不限） */
-export function inRange(d: Date | null, from: Date | null, to: Date | null): boolean {
+export function inRange(
+  d: Date | null,
+  from: Date | null,
+  to: Date | null
+): boolean {
   if (!d) return false;
   if (from && d < from) return false;
   if (to && d > to) return false;
@@ -250,6 +269,8 @@ export function getUndefinedAmountOrders(
   policy: IncomePolicy
 ): OrderListItem[] {
   return orders.filter(
-    o => isIncluded(o, policy) && resolveOrderAmount(o, []).amountSource === "undefined"
+    o =>
+      isIncluded(o, policy) &&
+      resolveOrderAmount(o, []).amountSource === "undefined"
   );
 }

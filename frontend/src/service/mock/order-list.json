@@ -814,18 +814,7 @@
       "hasPreviousPage": false,
       "hasNextPage": true,
       "navigatePages": 10,
-      "navigatepageNums": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10
-      ],
+      "navigatepageNums": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
       "navigateFirstPage": 1,
       "navigateLastPage": 10
     }
