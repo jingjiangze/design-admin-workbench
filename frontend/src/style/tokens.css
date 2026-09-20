@@ -1,0 +1,275 @@
+/**
+ * 设计令牌（Phase UI-R1 · §四十一）—— 全站唯一视觉事实来源
+ *
+ * 规则：
+ *  - 页面/组件只允许消费本文件变量，禁止散写 padding: 17px / radius: 11px 等 magic number
+ *  - 阴影仅浮层可用（Drawer/Modal/Popover/Command Palette，§十八）
+ *  - 主色 #111111（§十六），状态色只出现在状态本身（§十七）
+ *  - Element Plus 变量在本文件收敛（§三十九：模板组件外观 → 项目自己的组件语言）
+ */
+
+:root {
+  /* ── 色板（Modern Minimal · Light） ── */
+  --app-bg: #f7f7f5;
+  --app-surface: #ffffff;
+  --app-surface-hover: #efefec;
+  --app-surface-active: #e8e8e4;
+
+  --app-border: rgba(0, 0, 0, 0.07);
+  --app-border-strong: rgba(0, 0, 0, 0.14);
+
+  --app-text: #18181b;
+  --app-text-secondary: #52525b;
+  --app-text-muted: #71717a;
+  --app-text-faint: #a1a1aa;
+
+  --app-accent: #111111;
+  --app-accent-hover: #2e2e2e;
+  --app-accent-soft: #ececea;
+  --app-accent-text: #ffffff;
+
+  /* 状态色 —— 只用于状态点/状态文字/危险操作，不做彩色卡片（§十七） */
+  --app-danger: #c6483e;
+  --app-danger-soft: #f9eceb;
+  --app-warning: #a16207;
+  --app-warning-soft: #f7f0dd;
+  --app-success: #3d7a4e;
+  --app-success-soft: #e9f2eb;
+
+  /* ── 圆角（§十九：常规 6/8，浮层 10） ── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  /* ── 间距 ── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ── 布局（§四 Rail 56~64 / §七 Header 52~56 / §二十一 max 1280~1360） ── */
+  --rail-width: 60px;
+  --header-height: 54px;
+  --content-max: 1320px;
+
+  /* ── 阴影：仅浮层（§十八） ── */
+  --shadow-overlay: 0 8px 32px rgba(0, 0, 0, 0.12);
+  --shadow-overlay-soft: 0 4px 16px rgba(0, 0, 0, 0.08);
+
+  /* ── 字体（§二十：中文栈 + 数字 Inter + 订单号 mono） ── */
+  --font-sans:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --font-mono:
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, "Liberation Mono",
+    monospace;
+
+  /* ═══ Element Plus 收敛（§三十九） ═══ */
+  /* 主色 → 近黑 accent；EP 的 hover/active 由 light-x 档位衍生 */
+  --el-color-primary: #111111;
+  --el-color-primary-light-3: #4b4b4b;
+  --el-color-primary-light-5: #7d7d7d;
+  --el-color-primary-light-7: #b3b3b1;
+  --el-color-primary-light-8: #cbcbc9;
+  --el-color-primary-light-9: #e8e8e5;
+  --el-color-primary-dark-2: #000000;
+
+  --el-border-radius-base: 6px;
+  --el-border-radius-small: 4px;
+
+  --el-border-color: rgba(0, 0, 0, 0.1);
+  --el-border-color-light: rgba(0, 0, 0, 0.07);
+  --el-border-color-lighter: rgba(0, 0, 0, 0.06);
+  --el-border-color-extra-light: rgba(0, 0, 0, 0.05);
+
+  --el-bg-color-page: #f7f7f5;
+  --el-fill-color-light: #efefec;
+  --el-fill-color-lighter: #f4f4f2;
+  --el-fill-color-blank: #ffffff;
+
+  --el-text-color-primary: #18181b;
+  --el-text-color-regular: #52525b;
+  --el-text-color-secondary: #71717a;
+  --el-text-color-placeholder: #a1a1aa;
+
+  /* 表格：去厚重表头/深边框，收敛为极简线表 */
+  --el-table-header-bg-color: #fafaf8;
+  --el-table-header-text-color: #71717a;
+  --el-table-border-color: rgba(0, 0, 0, 0.06);
+  --el-table-row-hover-bg-color: #f4f4f2;
+  --el-table-tr-bg-color: #ffffff;
+
+  /* Drawer/Dialog/Popper 浮层基线 */
+  --el-drawer-padding-primary: 24px;
+}
+
+/* ── 全局排版基线 ── */
+body {
+  font-family: var(--font-sans);
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 数字统一等宽数字特性（表格/统计对齐） */
+.app-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 订单号/编号一律 mono（§二十） */
+.app-mono {
+  font-family: var(--font-mono);
+  font-size: 0.93em;
+  letter-spacing: -0.01em;
+}
+
+/* ── Element Plus 组件语言收敛（全局，仅外观层） ── */
+
+/* 按钮：主按钮近黑实底；默认按钮白底细边；去大阴影 */
+.el-button--primary {
+  --el-button-bg-color: var(--app-accent);
+  --el-button-border-color: var(--app-accent);
+  --el-button-hover-bg-color: var(--app-accent-hover);
+  --el-button-hover-border-color: var(--app-accent-hover);
+  --el-button-active-bg-color: #000000;
+  --el-button-active-border-color: #000000;
+  --el-button-disabled-bg-color: #b3b3b1;
+  --el-button-disabled-border-color: #b3b3b1;
+}
+
+.el-button {
+  --el-button-outline-color: rgba(0, 0, 0, 0.14);
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+/* 输入框：白底细边、聚焦近黑描边 */
+.el-input__wrapper {
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 1px var(--app-border-strong) inset;
+  transition: box-shadow 140ms ease;
+}
+.el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24) inset;
+}
+.el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1.5px var(--app-accent) inset;
+}
+
+/* 表格：极简线表（§十四/§二十二：无厚重工具栏感） */
+.el-table {
+  --el-table-font-size: 13.5px;
+  background: transparent;
+}
+.el-table th.el-table__cell {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--app-text-muted);
+  letter-spacing: 0.02em;
+}
+.el-table .el-table__cell {
+  padding: 10px 0;
+}
+
+/* 分页：极简 */
+.el-pagination {
+  --el-pagination-button-bg-color: transparent;
+  font-weight: 400;
+}
+.el-pagination .el-pager li {
+  background: transparent;
+}
+.el-pagination .el-pager li.is-active {
+  color: var(--app-text);
+  font-weight: 600;
+  background: var(--app-accent-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* Tag：一律去彩底，仅状态场景使用 AppStatus，EP Tag 仅作为兜底 */
+.el-tag {
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+/* Drawer：左圆角浮层 + 柔阴影（§十八/§十九 浮层 10px） */
+.el-drawer {
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+}
+.el-drawer__header {
+  margin-bottom: 0;
+  padding: 20px 24px 16px;
+}
+
+/* Dialog：浮层 10px 圆角 */
+.el-dialog {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-overlay);
+}
+
+/* Popover/Tooltip/Popper：轻阴影 */
+.el-popper.is-light {
+  border-color: var(--app-border);
+  box-shadow: var(--shadow-overlay-soft);
+  border-radius: var(--radius-md);
+}
+
+/* Tabs：内容导航式（非后台页签感）——下划线极细 */
+.el-tabs__nav-wrap::after {
+  height: 1px;
+  background-color: var(--app-border);
+}
+.el-tabs__active-bar {
+  height: 2px;
+  border-radius: 2px;
+  background-color: var(--app-accent);
+}
+.el-tabs__item {
+  color: var(--app-text-muted);
+  font-weight: 500;
+}
+.el-tabs__item.is-active {
+  color: var(--app-text);
+}
+.el-tabs__item:hover {
+  color: var(--app-text-secondary);
+}
+
+/* Checkbox：小方圆角 */
+.el-checkbox__inner {
+  border-radius: 4px;
+  border-color: var(--app-border-strong);
+}
+
+/* 骨架/加载：静默化 */
+.el-skeleton__item {
+  background: linear-gradient(
+    90deg,
+    #eeeeec 25%,
+    #f4f4f2 37%,
+    #eeeeec 63%
+  );
+  border-radius: var(--radius-sm);
+}
+
+/* 全局滚动条：细 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
