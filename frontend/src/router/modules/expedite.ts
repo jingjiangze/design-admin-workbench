@@ -6,7 +6,7 @@ export default {
   component: Layout,
   meta: {
     icon: "ep/bell",
-    title: "催单中心",
+    title: "催稿",
     rank: 2
   },
   children: [
@@ -15,7 +15,7 @@ export default {
       name: "ExpediteList",
       component: () => import("@/views/expedite/index.vue"),
       meta: {
-        title: "催单清单"
+        title: "待处理催稿"
       }
     }
   ]

@@ -6,7 +6,7 @@ export default {
   component: Layout,
   meta: {
     icon: "ep/user",
-    title: "账户中心",
+    title: "账户",
     rank: 5
   },
   children: [

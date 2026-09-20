@@ -6,7 +6,7 @@ export default {
   component: Layout,
   meta: {
     icon: "ep/list",
-    title: "订单中心",
+    title: "订单",
     rank: 1
   },
   children: [
@@ -15,7 +15,7 @@ export default {
       name: "OrderList",
       component: () => import("@/views/order/index.vue"),
       meta: {
-        title: "订单列表"
+        title: "订单"
       }
     },
     {

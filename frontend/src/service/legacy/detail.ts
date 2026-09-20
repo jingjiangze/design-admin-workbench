@@ -2,7 +2,7 @@
  * Legacy Detail Adapter —— 旧系统订单详情接口的唯一入口
  * 类型/提取器/映射纯函数在 legacy/detail-mapping.ts 与 legacy/types.ts
  *
- * 主键约定 [VERIFIED]：needsDetail2(needsid) 为主详情接口（myOrder/催单/消息入口统一引用）；
+ * 主键约定 [VERIFIED]：needsDetail2(needsid) 为主详情接口（myOrder/催稿/消息入口统一引用）；
  * needsDetail(applyid) 为兼容入口，两接口响应为同一 HTML 模板（99.97% 逐字节相同）
  * 数据形态：551KB 级 HTML，内嵌 HTML 转义 JSON（&#034; 等）
  * 只读纪律：仅 GET

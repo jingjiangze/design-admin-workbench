@@ -6,7 +6,7 @@ export default {
   component: Layout,
   meta: {
     icon: "ep/grid",
-    title: "品类中心",
+    title: "品类",
     rank: 3
   },
   children: [
@@ -15,7 +15,7 @@ export default {
       name: "CategoryList",
       component: () => import("@/views/category/index.vue"),
       meta: {
-        title: "品类查询"
+        title: "品类与金额"
       }
     }
   ]

@@ -1,21 +1,21 @@
 const Layout = () => import("@/layout/index.vue");
 
 export default {
-  path: "/data",
-  name: "DataCenter",
+  path: "/income",
+  name: "Income",
   component: Layout,
   meta: {
-    icon: "ep/data-analysis",
-    title: "数据中心",
+    icon: "ep/wallet",
+    title: "收入",
     rank: 4
   },
   children: [
     {
-      path: "/data/index",
-      name: "DataOverview",
-      component: () => import("@/views/data/index.vue"),
+      path: "/income/index",
+      name: "IncomeOverview",
+      component: () => import("@/views/income/index.vue"),
       meta: {
-        title: "数据概览"
+        title: "收入总览"
       }
     }
   ]
