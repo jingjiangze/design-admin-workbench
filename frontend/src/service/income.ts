@@ -9,19 +9,25 @@ import { fetchOrders } from "./order";
 import { listRules } from "./pricing/pricing-rule-store";
 import type { PricingRule } from "./pricing/pricing-rule-types";
 import {
-  getIncomeSummary,
-  getIncomeByCategory,
-  getIncomeOrders,
-  getUndefinedAmountOrders,
   enrichScope,
   DEFAULT_RANGE_PRESETS
 } from "./income/income-service-core";
-import type { IncomeSummary, CategoryIncome } from "./income/income-calculation";
+import {
+  getIncomeOrders,
+  getUndefinedAmountOrders
+} from "./income/income-calculation";
+import type {
+  IncomeSummary,
+  CategoryIncome
+} from "./income/income-calculation";
 import type { IncomePolicy } from "./income/income-policy";
 import { DEFAULT_INCOME_POLICY } from "./income/income-policy";
 import type { OrderListItem } from "./types";
 
-export type { IncomeSummary, CategoryIncome } from "./income/income-calculation";
+export type {
+  IncomeSummary,
+  CategoryIncome
+} from "./income/income-calculation";
 export { DEFAULT_INCOME_POLICY } from "./income/income-policy";
 export type { IncomePolicy } from "./income/income-policy";
 export { DEFAULT_RANGE_PRESETS } from "./income/income-service-core";
