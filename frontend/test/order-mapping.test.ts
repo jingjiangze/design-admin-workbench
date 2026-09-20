@@ -37,11 +37,35 @@ describe("mapLegacyOrderListItem — 38 字段映射", () => {
     expect(m.view).toBe("completed");
   });
 
-  it("金额字段数值化：design_money/money/sales → number", () => {
+  it("金额三层模型基线：design_money → legacyAmount + 派生字段（P1B）", () => {
     const m = mapLegacyOrderListItem(raw);
-    expect(typeof m.designFee).toBe("number");
+    // legacyAmount：有值 → number 且派生 effective=legacy、source=legacy
+    if (m.legacyAmount === null) {
+      expect(m.amountSource).toBe("undefined");
+      expect(m.effectiveAmount).toBeNull();
+    } else {
+      expect(typeof m.legacyAmount).toBe("number");
+      expect(m.effectiveAmount).toBe(m.legacyAmount);
+      expect(m.amountSource).toBe("legacy");
+    }
+    expect(m.overrideAmount).toBeNull(); // Adapter 基线无规则命中
     expect(typeof m.price).toBe("number");
     expect(typeof m.sales).toBe("number");
+  });
+
+  it("design_money 空值形态 → legacyAmount=null（未定义 ≠ ¥0）", () => {
+    for (const empty of [null, "", undefined]) {
+      const m = mapLegacyOrderListItem({
+        ...raw,
+        design_money: empty
+      } as LegacyOrderListItem);
+      expect(m.legacyAmount).toBeNull();
+      expect(m.amountSource).toBe("undefined");
+    }
+    // 0 是合法值
+    const zero = mapLegacyOrderListItem({ ...raw, design_money: 0 } as LegacyOrderListItem);
+    expect(zero.legacyAmount).toBe(0);
+    expect(zero.amountSource).toBe("legacy");
   });
 
   it("布尔字段语义化：urgent=1 → urgent；isrepulsedata 透传", () => {

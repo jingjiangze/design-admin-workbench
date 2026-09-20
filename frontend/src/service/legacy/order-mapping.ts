@@ -5,6 +5,7 @@
 import type { LegacyOrderListItem } from "./types";
 import type { OrderListItem } from "../types";
 import { mapStateToView } from "../types";
+import { parseLegacyAmount, baselineResolution } from "../pricing/amount-resolution";
 
 /** 列表查询参数（state 传旧系统过滤枚举 ""/1..8/11/12，keyword 走服务端模糊） */
 export interface LegacyOrderListParams {
@@ -41,6 +42,9 @@ export function buildOrderListQuery(
 export function mapLegacyOrderListItem(
   raw: LegacyOrderListItem
 ): OrderListItem {
+  // 原始金额：design_money 空/null/非数字 → null（未定义 ≠ ¥0，Phase 1B 三层模型基线）
+  const legacyAmount = parseLegacyAmount(raw.design_money);
+  const baseline = baselineResolution(legacyAmount);
   return {
     orderId: String(raw.needsid ?? ""),
     applyId: String(raw.applyid ?? ""),
@@ -55,7 +59,14 @@ export function mapLegacyOrderListItem(
     endTime: String(raw.timeneeds ?? ""),
     createTime: String(raw.needscreatetime ?? ""),
     completeTime: String(raw.completetime ?? ""),
-    designFee: Number(raw.design_money ?? 0),
+    legacyAmount,
+    overrideAmount: baseline.overrideAmount,
+    effectiveAmount: baseline.effectiveAmount,
+    amountSource: baseline.amountSource,
+    // 商品标识：列表 38 字段不含 goodsid（实测），存在时透传（详情层可补全）
+    goodsId: raw.goodsid != null ? String(raw.goodsid) : undefined,
+    subGoodsId: raw.subGoodsid != null ? String(raw.subGoodsid) : undefined,
+    productName: raw.goodsname != null ? String(raw.goodsname) : undefined,
     price: Number(raw.money ?? 0),
     sales: Number(raw.sales ?? 0),
     urgent: Number(raw.urgent ?? 0) === 1,

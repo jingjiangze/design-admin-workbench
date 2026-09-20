@@ -5,6 +5,9 @@
  * 映射由 legacy/order.ts（Adapter 层）完成，视图层禁止 import legacy/*
  */
 
+/** 金额来源：override=用户规则 / legacy=旧系统设计费 / undefined=未定义（≠¥0） */
+export type AmountSource = "override" | "legacy" | "undefined";
+
 /**
  * 旧系统 6 业务视图（12 旧态收敛，docs/NEW_INFORMATION_ARCHITECTURE.md §3）
  * 全部 = ""；待接单 = 1；进行中 = 2/3；待审核 = 4/6；已完结 = 5/7；风险单 = 8/11/12
@@ -77,9 +80,24 @@ export interface OrderListItem {
   createTime: string;
   /** 完成时间 */
   completeTime: string;
-  /** 设计费（design_money） */
-  designFee: number;
-  /** 价格（money） */
+  /**
+   * 原始金额三层模型（docs/PRICING_RULE_SPEC.md §2-3）：
+   * legacyAmount = 旧系统设计费（design_money），空 → null（未定义 ≠ ¥0），只读
+   * overrideAmount = 命中用户金额规则的金额，未命中 → null
+   * effectiveAmount = 最终统计金额 = resolveOrderAmount 产物
+   * amountSource = "override" | "legacy" | "undefined"
+   */
+  legacyAmount: number | null;
+  overrideAmount: number | null;
+  effectiveAmount: number | null;
+  amountSource: AmountSource;
+  /** 商品 ID（goodsid；列表行缺省时由详情层补全，金额规则匹配用） */
+  goodsId?: string;
+  /** 子商品 ID（subGoodsid，精确规则匹配） */
+  subGoodsId?: string;
+  /** 商品名（productName，品类分布/规则展示） */
+  productName?: string;
+  /** 价格（money，38 字段映射保留） */
   price: number;
   /** 销售金额（sales） */
   sales: number;
