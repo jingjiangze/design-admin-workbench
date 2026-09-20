@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# post-commit hook: auto-push after every commit (real-time sync)
+# Escape hatch: NO_AUTO_PUSH=1 git commit -m "..."
+TOP="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -z "$TOP" ] && exit 0
+[ "$NO_AUTO_PUSH" = "1" ] && exit 0
+LOG="$(git rev-parse --git-dir)/push.log"
+echo "=== $(date '+%F %T') post-commit auto-push ===" >> "$LOG"
+bash "$TOP/scripts/sync-push.sh" "$(git rev-parse --abbrev-ref HEAD)" >> "$LOG" 2>&1 || true
+exit 0

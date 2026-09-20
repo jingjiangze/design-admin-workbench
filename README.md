@@ -39,5 +39,8 @@ research/ 取证原始记录（脱敏后的 JSON 样本、截图说明、请求�
 ## 同步约定
 
 - 一个逻辑任务一个 commit（`docs:` / `chore:` 前缀），**每个 commit 实时推送**到 `origin/main`
+- 推送统一走 `scripts/sync-push.sh`（内置 TLS 吊销修复 + 静默凭据 + 失败重试 ×3）
+- 已安装 `post-commit` 钩子：每次 commit 后自动推送，无需单独执行推送命令；临时跳过用 `NO_AUTO_PUSH=1 git commit ...`
+- 推送日志：`.git/push.log`
 - 不 force push、不 squash、不改写历史
 - 新增前端代码在本阶段默认禁止（Phase 0 结束前不开始大规模 Vue 开发）
