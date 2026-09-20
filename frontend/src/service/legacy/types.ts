@@ -117,3 +117,61 @@ export interface LegacyOrderListResponse {
     [key: string]: unknown;
   };
 }
+
+/** 详情容器（needsDetail2/needsid 主键，17 顶层字段实测键名） */
+export interface LegacyDetailContainer {
+  applyid: string;
+  needsid: string;
+  ordernum: string;
+  /** ERP 原始推单对象（二次嵌套 JSON 字符串，含语义错位 ordrtyp 与 PII） */
+  erpOrderJson: string;
+  /** 多版设计产品行（与 erp.Products 同构） */
+  products: LegacyProduct[];
+  goodsFileParamList: LegacyFileConstraint[];
+  decidingPapersFile: Record<string, unknown>;
+  s3url: string;
+  s3Largeurl: string;
+  isbeol: boolean;
+  isModel: number;
+  isMultipleUpload: boolean;
+  isPackgeUpload: boolean;
+  isPackgeUploadShow: boolean;
+  isOnlyDesignOfOrder: boolean;
+  isConnectShow: boolean;
+  spotColor: boolean;
+  [key: string]: unknown;
+}
+
+/** 版次产品行（ERP Products，27 字段核心子集） */
+export interface LegacyProduct {
+  spmc: string;
+  designNo: string;
+  def1Name: string;
+  chang: number;
+  wide: number;
+  attrs: string;
+  def8: string;
+  sizeName: string;
+  guige: string;
+  spsl: number;
+  danwei: string;
+  je: number;
+  outer_sku_id: string;
+  [key: string]: unknown;
+}
+
+/** 文件上传约束（goodsFileParamList 元素） */
+export interface LegacyFileConstraint {
+  checkFileSuffix: string;
+  checkSimilar: number;
+  edition: number;
+  editionFileParamList: Array<Record<string, unknown>>;
+  goodsid: string;
+  goodsname: string;
+  subGoodsid: string;
+  subGoodsname: string;
+  keywords: string;
+  sizeName: string;
+  detailId: string;
+  [key: string]: unknown;
+}

@@ -70,6 +70,8 @@ declare global {
     VITE_CDN: boolean;
     VITE_HIDE_HOME: string;
     VITE_COMPRESSION: ViteCompression;
+    /** P1A-11 Mock/Real 分离开关（true=真实旧系统） */
+    VITE_LEGACY_API_ENABLED: boolean;
   }
 
   /**
