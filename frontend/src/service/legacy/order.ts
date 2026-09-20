@@ -4,11 +4,7 @@
  * 隐性契约 [VERIFIED]：getOrderList.do 必传 sort=0&sorttype=1，缺省返回 flag:500
  * 只读纪律：本文件与整个 legacy/ 目录仅允许 GET 请求
  */
-import { http } from "@/utils/http";
-import type {
-  LegacyOrderListItem,
-  LegacyOrderListResponse
-} from "./types";
+import type { LegacyOrderListItem, LegacyOrderListResponse } from "./types";
 
 /** P1A-07 实现：拉取旧系统订单列表（sort=0&sorttype=1 必传） */
 export async function fetchLegacyOrderList(

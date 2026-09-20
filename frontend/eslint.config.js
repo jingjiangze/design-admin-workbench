@@ -119,6 +119,28 @@ export default defineConfig([
     }
   },
   {
+    // P1A-05 URL 隔离（四层架构强制，见 docs/TECHNICAL_BASELINE.md）：
+    // 旧系统路径 /chsjs 与接口 *.do 字面量只允许出现在 Legacy Adapter 层
+    // src/service/legacy/；其余任何源码文件出现即 lint 报错。
+    files: ["src/**/*.{ts,tsx,vue}"],
+    ignores: ["src/service/legacy/**"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/chsjs/i]",
+          message:
+            "旧系统路径 /chsjs 只能出现在 src/service/legacy/（Legacy Adapter 层）"
+        },
+        {
+          selector: "Literal[value=/\\.do\\b/]",
+          message:
+            "旧系统 *.do 接口名只能出现在 src/service/legacy/（Legacy Adapter 层）"
+        }
+      ]
+    }
+  },
+  {
     files: ["**/*.vue"],
     languageOptions: {
       globals: {

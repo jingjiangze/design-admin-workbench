@@ -9,7 +9,9 @@ defineOptions({
 </script>
 
 <template>
-  <div class="batch-bar-placeholder">P1B：跨页勾选 / 复制订单号（顿号/逗号/逐行）</div>
+  <div class="batch-bar-placeholder">
+    P1B：跨页勾选 / 复制订单号（顿号/逗号/逐行）
+  </div>
 </template>
 
 <style scoped>

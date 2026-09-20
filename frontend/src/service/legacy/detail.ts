@@ -5,7 +5,7 @@
  * needsDetail(applyid) 为兼容入口，两者响应为同一 HTML 模板（99.97% 逐字节相同）
  * 只读纪律：仅 GET
  */
-import { http } from "@/utils/http";
+// P1A-08 启用时引入: import { http } from "@/utils/http";
 
 /** P1A-08 实现：按 needsid 主键拉取详情（返回 551KB 级 HTML，内嵌转义 JSON） */
 export async function fetchLegacyDetailByNeedsid(_needsid: string) {

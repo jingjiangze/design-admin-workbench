@@ -6,7 +6,9 @@ defineOptions({
 </script>
 
 <template>
-  <div class="search-bar-placeholder">P1B：全局查单（订单号/客户/店铺/关键词）</div>
+  <div class="search-bar-placeholder">
+    P1B：全局查单（订单号/客户/店铺/关键词）
+  </div>
 </template>
 
 <style scoped>
