@@ -106,7 +106,7 @@ design-admin-workbench/
 │   ├── legacy/               # client + order + detail + remind + mock-data
 │   └── pricing/              # D1 CRUD + users
 ├── migrations/0001_init.sql  # D1 表结构
-├── wrangler.jsonc            # assets / DB / SESSIONS / environments
+├── wrangler.jsonc            # assets / DB / SESSIONS / env（多环境，键名必须为 "env"）
 └── docs/                     # 本文档等五份 CF 文档
 ```
 

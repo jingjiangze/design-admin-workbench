@@ -57,17 +57,24 @@ npx wrangler secret put TURNSTILE_SECRET_KEY                   # 生产登录防
 ```
 
 - Secret 绝不写入 git / wrangler.jsonc / .env / 前端 bundle（长文 §三十四）。
+- **Secret 是 per-environment 的，不跨环境继承**（[VERIFIED 2026-09-20]）：
+  `wrangler secret put` 不带 `--env` 只作用于默认（顶层）环境。
+  部署 `--env preview` / `--env production` 前，须为该环境各自再 put 一次，
+  否则该环境内 `env.SESSION_ENCRYPTION_KEY` 为 undefined，会话加密登录会失败。
 - 本地短时调试用 `worker/.dev.vars`（模板：`worker/.dev.vars.example`，已 gitignore）。
 - Turnstile site key（公开，非 secret）在 Cloudflare 控制台创建后填入前端登录页配置。
 
 ## 五、D1 迁移
 
 ```bash
-npx wrangler d1 migrations apply design-workbench --remote            # 生产
-npx wrangler d1 migrations apply design-workbench-preview --remote    # 预览
+npx wrangler d1 migrations apply design-workbench --remote                  # 生产（默认环境）
+npx wrangler d1 migrations apply design-workbench-preview --env preview --remote  # 预览（须 --env preview）
 ```
 
 迁移文件：`migrations/0001_init.sql`（users / pricing_rules / user_settings / operation_log + 表达式唯一索引）。
+
+> [VERIFIED 2026-09-20] 两库均已应用 0001_init.sql 成功（各 7 commands）。
+> 预览库命令若漏掉 `--env preview`，wrangler 在顶层配置中找不到 `design-workbench-preview` 会直接报错。
 
 ## 六、GitHub 自动部署（Workers Builds）
 

@@ -48,7 +48,10 @@
     "enabled": true
   },
 
-  "environments": {
+  // ⚠️ wrangler 4 的多环境键名是 "env"（不是 "environments"）。
+  //    写错键名 wrangler 会静默忽略整个配置块（仅警告 Unexpected fields），
+  //    --env preview/production 将报 No environment found。
+  "env": {
     // development：远端 Mock（legacy=off），本地短时调试用 `wrangler dev`
     "development": {
       "vars": {

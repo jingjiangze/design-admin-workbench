@@ -28,6 +28,8 @@ dist/
 *.log
 npm-debug.log*
 .vite/
+# wrangler 本地缓存（dev/构建产物，含本地状态不入库）
+.wrangler/
 
 # ===== WorkBuddy 本地状态 =====
 .workbuddy/
