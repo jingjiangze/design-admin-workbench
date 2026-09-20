@@ -12,7 +12,10 @@
 | Shop（店铺） | 存在（弱实体） | shop=益好旗舰店（字符串冗余于订单行，无 shopid） | N : 1 Member [INFERRED] | [VERIFIED] 字段存在 |
 | Customer（客户/买家） | 存在（弱实体） | kehu_name + kehu_ww（旺旺号，冗余字段，无独立接口） | N : 1 Order 行内冗余 | [VERIFIED] 字段存在 |
 | Order（订单） | 存在 | ordernum=TT_260908007929；38 字段 | 聚合根，挂需求/设计/状态 | [VERIFIED] |
-| Need（需求/申请） | 存在 | **双键**：applyid（1977019790）与 needsid（1977019785），两套详情接口（needsDetail / needsDetail2） | 1 Order : 1 Need [INFERRED]；双键语义待详情取证 | [VERIFIED] 双键存在 |
+| Need（需求/申请） | 存在 | **双键**：applyid 与 needsid 同时出现在详情容器中；两详情接口渲染同一模板同一数据（99.97% 逐字节同），仅入参键不同；动态子接口统一用 needsid | 1 Order : 1 Need；**needsid 为主键**（[INFERRED] 依据详见 ORDER_DETAIL_MODEL.md §1） | [VERIFIED] 双键同体 |
+| DesignEdition（设计版次） | 存在（详情取证新增） | Products[] 5 版各含 designNo（订单号+版次+时间戳+序列）、editionFileParamList 按版组织文件、edition=5 | N : 1 Order | [VERIFIED] |
+| ErpOrderSnapshot（ERP 推单快照） | 存在（详情取证新增） | erpOrderJson 二次嵌套 JSON：19 顶层字段 + Products 27 字段；含 PII（tel/email/company/qq/buyer_open_uid）；ordrtyp 字段语义错位（存店铺名） | 1 : 1 Order，只读审计 | [VERIFIED] |
+| FileConstraint（文件约束） | 存在（详情取证新增） | checkFileSuffix=jpg,xls,xlsx,pdf,cdr、checkSimilar、excelUploadShow、keywords 品类关键词 | N : 1 Order（按 goodsid） | [VERIFIED] |
 | Category（品类） | 存在 | goodsid（428 个唯一 ID）+ name；无独立品类管理页面（疑似写死/上游同步） | 1 Category : N Order | [VERIFIED] |
 | DesignTask（设计任务） | 存在（隐式） | tasktype（修改设计）、manuscriptdesignstatus（设计状态位）、版数 edition（隐藏列）、交稿格式 suffix（隐藏列） | 1 : 1 Order 行内 | [VERIFIED] 字段存在 |
 | Status（状态机） | 存在 | state 数字枚举 1-12（12 值）+ needsstate/subviewstate/checkstatus 辅助位 | Order 属性 | [VERIFIED] |
