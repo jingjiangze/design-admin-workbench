@@ -7,6 +7,9 @@
 # 安全: 令牌只在进程内流转，绝不打印、绝不落盘
 set -euo pipefail
 
+# 切到仓库根目录，确保 git 凭据配置（仓库级 credential.helper）生效
+cd "${0%/*}/.." || exit 1
+
 METHOD="${1:-GET}"
 API_PATH="${2:-}"
 BODY_FILE="${3:-}"
