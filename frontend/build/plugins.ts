@@ -1,4 +1,3 @@
-import { cdn } from "./cdn";
 import vue from "@vitejs/plugin-vue";
 import { viteBuildInfo } from "./info";
 import svgLoader from "vite-svg-loader";
@@ -58,8 +57,8 @@ export function getPluginsList(
     // 在 pnpm 严格布局下解析不到 vue-demi 会直接崩溃（Phase 0 实测），故禁用
     null as any,
     configCompressPlugin(VITE_COMPRESSION),
-    // 线上环境删除console
-    removeConsole({ external: ["src/assets/iconfont/iconfont.js"] }),
+    // 线上环境删除console（iconfont.js 已移至 public/ 不进模块图，无需 external 排除）
+    removeConsole(),
     // 打包分析
     lifecycle === "report"
       ? visualizer({ open: true, brotliSize: true, filename: "report.html" })

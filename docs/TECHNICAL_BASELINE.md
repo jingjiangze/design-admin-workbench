@@ -96,7 +96,10 @@ src/
 
 ## 4. 明确 UNKNOWN（不阻塞开发）
 
-- pure-admin-thin 在本机的 pnpm 构建产物体积 [NOT TESTED → Phase 1A 回填]
+- pure-admin-thin 在本机的 pnpm 三命令实测 [VERIFIED 2026-09-20，Phase 1A 回填]：
+  - `pnpm lint`（eslint --max-warnings 0 + prettier + stylelint 三件套）→ **exit 0 全绿**；修复过程：CDN 插件遗留 import 清除、补装模板漏声明依赖（stylelint-config-standard / stylelint-config-html / stylelint-scss / stylelint-order）、关闭与 SCSS 变量不兼容的 declaration-property-value-no-unknown
+  - `pnpm test`（vitest run）→ **28/28 全绿（4 文件 / 390ms）**
+  - `pnpm build`（rimraf dist && vite build）→ **15.89s / 1865 modules / 产物 2.25 MB**；最大 chunk 1,282 kB（gzip 429 kB）；iconfont.js 已移至 public/ 由 index.html 直载（规避 rollup 4.52.5 对 69 行 UMD 大文件的解析 bug）
 - 旧系统 WebSocket（SockJS/STOMP）在新系统的接入时机（Phase 2 催单中心再议）
 - 旧系统会话超时精确时长（实测 >2.5h 有效）
 - 登录 RSA 公钥轮换机制（假设不轮换，出现 401 全量重登兜底）

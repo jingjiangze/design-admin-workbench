@@ -79,6 +79,8 @@
       </style>
       <div class="loader"></div>
     </div>
+    <!-- iconfont SVG sprite 注入脚本：置于 public/ 由浏览器直接加载，不进 rollup 模块图（规避 rollup 4.52.5 对该 UMD 单行大文件的解析 bug） -->
+    <script src="/iconfont.js"></script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

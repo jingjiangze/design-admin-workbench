@@ -16,15 +16,18 @@ defineOptions({
 .placeholder {
   padding: 24px;
 }
+
 .placeholder h2 {
   margin-bottom: 12px;
   font-size: 18px;
   font-weight: 600;
 }
+
 .placeholder p {
   margin: 4px 0;
   color: var(--el-text-color-secondary);
 }
+
 .placeholder .note {
   font-size: 12px;
 }

@@ -26,6 +26,8 @@ export default {
     "prettier/prettier": true,
     "selector-class-pattern": null,
     "no-descending-specificity": null,
+    // stylelint-config-standard v40 新增默认规则，官方文档注明不兼容 SCSS 变量（如 $border-style），关闭
+    "declaration-property-value-no-unknown": null,
     "scss/dollar-variable-pattern": null,
     "selector-pseudo-class-no-unknown": [
       true,

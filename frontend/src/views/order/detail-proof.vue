@@ -131,35 +131,41 @@ async function query() {
 .detail-proof {
   padding: 24px;
 }
+
 .detail-proof h2 {
   margin-bottom: 8px;
   font-size: 18px;
   font-weight: 600;
 }
+
 .detail-proof h3 {
   margin: 16px 0 8px;
   font-size: 15px;
   font-weight: 600;
 }
+
 .hint {
   margin-bottom: 12px;
-  color: var(--el-text-color-secondary);
   font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
+
 .query-bar {
   display: flex;
   gap: 12px;
   margin-bottom: 16px;
 }
+
 .json-box {
   max-height: 360px;
   padding: 12px;
   overflow: auto;
-  border-radius: 6px;
-  background: var(--el-fill-color-light);
   font-size: 12px;
   line-height: 1.5;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
 }
+
 .el-descriptions {
   margin-bottom: 16px;
 }

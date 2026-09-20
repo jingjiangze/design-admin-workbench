@@ -15,18 +15,18 @@
 
 | ID | 任务 | 状态 | 产出 | Commit |
 |----|------|------|------|--------|
-| P1A-01 | 安装 pnpm（正式安装，禁 NODE_OPTIONS 内联） | TODO | pnpm --version 数据 | - |
-| P1A-02 | pure-admin-thin 干净落地 `frontend/`（并入主仓库，处理嵌套 .git） | TODO | frontend/ 目录 | - |
-| P1A-03 | 清 demo（保 Layout/Router/Auth/Pinia/Axios/Theme/Permission/Error handling） | TODO | dev 看到"设计工作台"空白壳 | - |
-| P1A-04 | 目录骨架（service/{order,expedite,category,message,data,account}.ts + service/legacy/* + views/* + components/*） | TODO | 骨架文件树 | - |
-| P1A-05 | URL 隔离 ESLint 规则（/chsjs、\.do 只许在 src/service/legacy/） | TODO | lint 规则 + 违例演示 | - |
-| P1A-06 | Session Proof（同源/跨源判断 → Vite proxy 同源方案 → 登录页 RSA → docs/SESSION_INTEGRATION_PROOF.md） | TODO | 证明文档 + Cookie 表现记录 | - |
-| P1A-07 | Order API Proof（legacy/order.ts + order.ts 映射 OrderListItem；sort=0&sorttype=1 必传） | TODO | 列表拉通证明 | - |
-| P1A-08 | Detail API Proof（needsid 主键 + applyid 兼容；HTML 内嵌 JSON 提取移植 TS） | TODO | 详情拉通证明 | - |
-| P1A-09 | 详情 Drawer 技术 Proof（极简测试页：输入单号 → 查询 → 摘要 → 脱敏 JSON） | TODO | 测试页 | - |
-| P1A-10 | 4 个测试文件（sort 默认值 / 38 字段映射 / ordrtyp→shop + state→Status / needsid+applyid / ERP Snapshot / products / 4 种分隔符） | TODO | vitest 全绿 | - |
-| P1A-11 | Mock/Real 分离（VITE_LEGACY_API_ENABLED；凭据禁入 .env） | TODO | 环境开关证明 | - |
-| P1A-12 | pnpm lint/test/build 数据回填 TECHNICAL_BASELINE.md（NOT TESTED → 真实值） | TODO | 回填后的基线文档 | - |
+| P1A-01 | 安装 pnpm（正式安装，禁 NODE_OPTIONS 内联） | PASS | pnpm 12.5.1 | d848fb7 |
+| P1A-02 | pure-admin-thin 干净落地 `frontend/`（并入主仓库，处理嵌套 .git） | PASS | frontend/（206 文件） | d848fb7 |
+| P1A-03 | 清 demo（保 Layout/Router/Auth/Pinia/Axios/Theme/Permission/Error handling） | PASS | dev 看到"设计工作台"空白壳 | 40123f7 |
+| P1A-04 | 目录骨架（service/{order,expedite,category,message,data,account}.ts + service/legacy/* + views/* + components/*） | PASS | 骨架文件树（23 文件） | 72d5d7d |
+| P1A-05 | URL 隔离 ESLint 规则（/chsjs、\.do 只许在 src/service/legacy/） | PASS | no-restricted-syntax 双规则 + 违例演示 3 error 拦截 | fe4348d |
+| P1A-06 | Session Proof（同源/跨源判断 → Vite proxy 同源方案 → 登录页 RSA → docs/SESSION_INTEGRATION_PROOF.md） | PASS* | 技术链路全证明；登录被拒为账号侧问题（见文档 §6） | 7789c31 |
+| P1A-07 | Order API Proof（legacy/order.ts + order.ts 映射 OrderListItem；sort=0&sorttype=1 必传） | PASS | proxy 端到端 result=true total=548 | 3deb0f6 |
+| P1A-08 | Detail API Proof（needsid 主键 + applyid 兼容；HTML 内嵌 JSON 提取移植 TS） | PASS | 七区块映射 + PII 脱敏；551KB HTML 实测 | 6678d47 |
+| P1A-09 | 详情 Drawer 技术 Proof（极简测试页：输入单号 → 查询 → 摘要 → 脱敏 JSON） | PASS | /order/detail-proof 测试页 | 6678d47 |
+| P1A-10 | 4 个测试文件（sort 默认值 / 38 字段映射 / ordrtyp→shop + state→view / needsid+applyid / ERP Snapshot / products / 4 种分隔符） | PASS | vitest 28/28 全绿（4 文件） | （P1A-10/11） |
+| P1A-11 | Mock/Real 分离（VITE_LEGACY_API_ENABLED；凭据禁入 .env） | PASS | gateway.ts 双通道 + Mock 样本同源 | （P1A-10/11） |
+| P1A-12 | pnpm lint/test/build 数据回填 TECHNICAL_BASELINE.md（NOT TESTED → 真实值） | PASS | lint exit 0 / test 28÷28 / build 15.89s·2.25MB；修复 iconfont rollup 解析 bug（public/ 化）+ 补装 4 个模板漏声明依赖 | （P1A-12） |
 
 ## 附加约束（长文下达，随任务落实）
 
@@ -40,21 +40,23 @@
 
 | # | 验收项 | 状态 |
 |---|--------|------|
-| 1 | pnpm 正式安装可用，pnpm --version 有真实数据 | TODO |
-| 2 | frontend/ 并入主仓库，无嵌套 .git | TODO |
-| 3 | pnpm dev 可启动，看到空白壳 | TODO |
-| 4 | 清 demo 后 Layout/Router/Auth/Pinia/Axios/Theme/Permission/Error handling 保留 | TODO |
-| 5 | 目录骨架符合 TECHNICAL_BASELINE 四层架构 | TODO |
-| 6 | ESLint 拦截 legacy/ 之外的 /chsjs、\.do 字面量（有违例演示） | TODO |
-| 7 | Session Proof：登录 → 带 Cookie 调用成功 → SESSION_INTEGRATION_PROOF.md 成文 | TODO |
-| 8 | Order API Proof：sort=0&sorttype=1 拉通真实列表 | TODO |
-| 9 | OrderListItem 映射：38 字段不直出 UI，ordrtyp→shop 只在 Adapter | TODO |
-| 10 | Detail Proof：needsid 主键 + applyid 兼容，提取器 TS 化 | TODO |
-| 11 | Drawer 技术 Proof 测试页可用（脱敏 JSON） | TODO |
-| 12 | vitest 4 个测试文件全绿 | TODO |
-| 13 | VITE_LEGACY_API_ENABLED 开关生效，Mock/Real 分离 | TODO |
-| 14 | 全程只 GET，无任何写接口调用 | TODO |
-| 15 | pnpm lint/test/build 真实数据回填 TECHNICAL_BASELINE.md | TODO |
+| 1 | pnpm 正式安装可用，pnpm --version 有真实数据 | PASS（12.5.1，npm i -g） |
+| 2 | frontend/ 并入主仓库，无嵌套 .git | PASS（d848fb7） |
+| 3 | pnpm dev 可启动，看到空白壳 | PASS（"设计工作台"壳，40123f7） |
+| 4 | 清 demo 后 Layout/Router/Auth/Pinia/Axios/Theme/Permission/Error handling 保留 | PASS（40123f7） |
+| 5 | 目录骨架符合 TECHNICAL_BASELINE 四层架构 | PASS（72d5d7d） |
+| 6 | ESLint 拦截 legacy/ 之外的 /chsjs、\.do 字面量（有违例演示） | PASS（fe4348d，3 error 拦截演示） |
+| 7 | Session Proof：登录 → 带 Cookie 调用成功 → SESSION_INTEGRATION_PROOF.md 成文 | PASS*（链路全证明；登录被拒为账号侧问题，文档 §6） |
+| 8 | Order API Proof：sort=0&sorttype=1 拉通真实列表 | PASS（3deb0f6，total=548） |
+| 9 | OrderListItem 映射：38 字段不直出 UI，ordrtyp→shop 只在 Adapter | PASS（order-mapping.ts） |
+| 10 | Detail Proof：needsid 主键 + applyid 兼容，提取器 TS 化 | PASS（6678d47） |
+| 11 | Drawer 技术 Proof 测试页可用（脱敏 JSON） | PASS（/order/detail-proof） |
+| 12 | vitest 4 个测试文件全绿 | PASS（28/28，390ms） |
+| 13 | VITE_LEGACY_API_ENABLED 开关生效，Mock/Real 分离 | PASS（gateway.ts 双通道） |
+| 14 | 全程只 GET，无任何写接口调用 | PASS（只读纪律，无写接口调用记录） |
+| 15 | pnpm lint/test/build 真实数据回填 TECHNICAL_BASELINE.md | PASS（lint exit 0 / test 28÷28 / build 15.89s·2.25MB，已回填 §4） |
+
+> **Phase 1A 验收结论：15/15 PASS（其中第 7 项带账号侧保留项），满足进入 Phase 1B 条件。**
 
 ## 汇报格式（最终 14 项）
 

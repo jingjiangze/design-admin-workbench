@@ -16,14 +16,16 @@ defineOptions({
 .workbench-empty {
   padding: 24px;
 }
+
 .workbench-empty h1 {
   margin-bottom: 12px;
   font-size: 20px;
   font-weight: 600;
 }
+
 .workbench-empty p {
   margin: 4px 0;
-  color: var(--el-text-color-secondary);
   font-size: 14px;
+  color: var(--el-text-color-secondary);
 }
 </style>

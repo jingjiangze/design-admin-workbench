@@ -26,10 +26,12 @@ defineProps<{
   border: 1px solid var(--el-border-color-light);
   border-radius: 6px;
 }
+
 .stat-card__value {
   font-size: 22px;
   font-weight: 600;
 }
+
 .stat-card__label {
   font-size: 13px;
   color: var(--el-text-color-secondary);

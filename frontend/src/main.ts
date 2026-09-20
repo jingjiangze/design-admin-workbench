@@ -18,8 +18,7 @@ import "./style/index.scss";
 // 一定要在main.ts中导入tailwind.css，防止vite每次hmr都会请求src/style/index.scss整体css文件导致热更新慢的问题
 import "./style/tailwind.css";
 import "element-plus/dist/index.css";
-// 导入字体图标
-import "./assets/iconfont/iconfont.js";
+// 导入字体图标（iconfont.js 已移至 public/ 由 index.html 直接加载，不进 rollup 模块图）
 import "./assets/iconfont/iconfont.css";
 
 const app = createApp(App);
