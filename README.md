@@ -40,9 +40,9 @@ research/ 取证原始记录（脱敏后的 JSON 样本、截图说明、请求�
 
 - **仓库已公开**（2026-09-20 由私有切换为 public）。内容红线：账号、密码、Cookie、Token、Session 等敏感数据**禁止入库**（已全历史扫描验证 0 泄露）；取证样本（页面 HTML、接口 JSON、会话凭据）一律留在本地 `.tmp-evidence/`（.gitignore 已拦截）
 - 一个逻辑任务一个 commit（`docs:` / `chore:` 前缀），**每个 commit 实时推送**到 `origin/main`
-- **GitHub 唯一通道 = 本地令牌**（Windows 凭据管理器中 GCM OAuth 令牌，repo 全权限、永不过期、零点击）：
+- **GitHub 唯一通道 = 本地凭据管理器**（凭据只在本机与进程内流转，敏感认证信息不入仓库、不在文档展开）：
   - git 推送统一走 `scripts/sync-push.sh`（内置 TLS 吊销修复 + 静默凭据 + 失败重试 ×3）
-  - API 查询统一走 `scripts/gh-api.sh`（如查远端 commit、读文件），令牌只在进程内流转不落盘
+  - API 查询统一走 `scripts/gh-api.sh`（如查远端 commit、读文件），凭据只在进程内流转，不入仓库
   - GitHub 连接器（CodeBuddy-Connector）已弃用：其令牌授权范围不足且反复要求重连授权
 - 已安装 `post-commit` 钩子：手动 commit 后自动推送；临时跳过用 `NO_AUTO_PUSH=1 git commit ...`
 - 推送日志：`.git/push.log`
