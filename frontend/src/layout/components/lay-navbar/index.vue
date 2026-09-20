@@ -6,6 +6,7 @@ import LayNavMix from "../lay-sidebar/NavMix.vue";
 import LaySidebarFullScreen from "../lay-sidebar/components/SidebarFullScreen.vue";
 import LaySidebarBreadCrumb from "../lay-sidebar/components/SidebarBreadCrumb.vue";
 import LaySidebarTopCollapse from "../lay-sidebar/components/SidebarTopCollapse.vue";
+import GlobalSearch from "@/components/GlobalSearch/index.vue";
 
 import LogoutCircleRLine from "~icons/ri/logout-circle-r-line";
 import Setting from "~icons/ri/settings-3-line";
@@ -40,6 +41,8 @@ const {
     <LayNavMix v-if="layout === 'mix'" />
 
     <div v-if="layout === 'vertical'" class="vertical-header-right">
+      <!-- 全局订单搜索（P1B-03：订单号直开 Drawer / 批量识别 / 关键词） -->
+      <GlobalSearch class="mr-2" />
       <!-- 菜单搜索 -->
       <LaySearch id="header-search" />
       <!-- 全屏 -->
