@@ -4,16 +4,41 @@
  * 四层架构：UI → Domain Service（本层）→ Legacy Adapter → HTTP
  * 视图层禁止：import "@/service/legacy/*"、出现 /chsjs 或 *.do 字面量
  */
+import { fetchLegacyOrderList, mapLegacyOrderListItem } from "./legacy/order";
 import type { OrderListItem, OrderView } from "./types";
 
-export type { OrderListItem, OrderView };
+export type { OrderListItem, OrderView } from "./types";
+export { VIEW_LABEL, mapStateToView } from "./types";
 
-/** P1A-07 实现：经 Adapter 拉取并映射为 OrderListItem 的列表查询 */
-export async function fetchOrders(_params: {
+/** 列表查询（6 视图 + 分页 + 关键词） */
+export async function fetchOrders(params: {
   view: OrderView;
   page: number;
   pageSize: number;
   keyword?: string;
 }): Promise<{ total: number; list: OrderListItem[] }> {
-  throw new Error("P1A-07 待实现");
+  // 视图 → 旧系统 state 过滤参数（服务端过滤枚举 1..8/11/12）
+  const STATE_PARAM: Record<Exclude<OrderView, "all">, string> = {
+    pending_accept: "1",
+    in_progress: "2", // 服务端按最小态过滤；2/3 合并展示由前端聚合
+    pending_review: "4",
+    completed: "5",
+    at_risk: "8"
+  };
+  const state = params.view === "all" ? "" : STATE_PARAM[params.view];
+  const res = await fetchLegacyOrderList({
+    page: params.page,
+    limit: params.pageSize,
+    state,
+    keyword: params.keyword
+  });
+  if (res.result === false || !res.data?.pageInfo) {
+    throw new Error(
+      `旧系统订单列表返回异常: flag=${res.flag ?? "-"} message=${res.message ?? "-"}`
+    );
+  }
+  return {
+    total: res.data.pageInfo.total,
+    list: res.data.pageInfo.list.map(mapLegacyOrderListItem)
+  };
 }

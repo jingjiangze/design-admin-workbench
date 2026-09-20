@@ -35,8 +35,8 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
           changeOrigin: true,
           secure: false,
           // [VERIFIED] 旧系统 Set-Cookie 带 Domain=d.jndx.net，与 localhost 不匹配
-          // 会被浏览器拒收；重写为 host-only Cookie（SESSION, HttpOnly, SameSite=Lax）
-          cookieDomainRewrite: true
+          // 会被浏览器拒收；重写 Domain 为 localhost（SESSION, HttpOnly, SameSite=Lax）
+          cookieDomainRewrite: { "d.jndx.net": "localhost" }
         }
       },
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布

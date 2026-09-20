@@ -3,40 +3,111 @@
  *
  * ⚠️ URL 隔离红线：/chsjs 与 *.do 字面量只允许出现在 src/service/legacy/
  * ⚠️ 38 字段禁直出 UI：LegacyOrderListItem 只能被 Adapter 消费
- * 字段全账本见 docs/ORDER_MODEL.md（列表）与 docs/ORDER_DETAIL_MODEL.md（详情）
+ *
+ * 字段来源：2026-09-20 真实响应实测（order_list_full.json，与 Phase 0
+ * api_order_withsort.json 样本字段完全一致），语义以实测值定稿。
  */
 
-/** 列表接口 getOrderList.do 响应中的单行（38 字段，此处声明已验证核心字段） */
+/** 列表接口 getOrderList.do 响应中的单行（实测 38 字段） */
 export interface LegacyOrderListItem {
-  /** 申请流水 ID（详情接口 needsDetail 的入参） */
-  applyid: string;
-  /** 订单主键（详情接口 needsDetail2 的入参，详情主键） */
+  // ===== 标识 =====
+  /** 订单主键（详情接口 needsDetail2 的入参） */
   needsid: string;
-  /** 品类 goodsid */
-  goodsid: string;
-  /** 品类标题 */
-  goodstitle: string;
-  /**
-   * ⚠️ 语义错位字段：字段名为 ordrtyp（疑似 order type），实际存储的是店铺名。
-   * 只允许在 Adapter 层改名为 shop，禁止以 ordrtyp 出现在任何视图层代码。
-   */
-  ordrtyp: string;
-  /** 订单状态码：""=全部/1 待接单/2 未反馈/3 设计中/4 交稿审核/5 通过/6 不通过/7 完结/8 流标/11 超时/12 不良与待超时复用 */
+  /** 申请流水 ID（详情接口 needsDetail 的兼容入参） */
+  applyid: string;
+  /** 平台订单号（如 TT_260908007929 或数字长串） */
+  ordernum: string;
+  /** 主会员 ID */
+  memberid: number;
+  /** 子会员 ID */
+  submemberid: number;
+
+  // ===== 状态 =====
+  /** 中文状态标签（实测："审核通过" | "设计中" | ...） */
   state: string;
+  /** 数字状态码（实测样本为 0；1-8/11/12 为请求过滤参数枚举） */
+  needsstate: number;
+  /** 子视图状态 */
+  subviewstate: number;
+  /** 稿件设计状态码 */
+  manuscriptdesignstatus: number;
+  /** 稿件设计状态名（实测："请选择" | "其他"） */
+  manuscriptdesignstatusname: string;
+  /** 审核状态 */
+  checkstatus: number;
+  /** 是否打回订单 */
+  isrepulsedata: boolean;
+  /** 是否最后一版 */
+  islast: boolean;
+  /** 是否新单标志 */
+  isnew: number;
+  /** 加急标志 */
+  urgent: number;
+
+  // ===== 客户/店铺 =====
+  /** 店铺名（实测："益好旗舰店" 等；详情 ERP 层对应 ordrtyp 字段） */
+  shop: string;
+  /** 客户昵称/称呼 */
+  kehu_name: string;
+  /** 客户旺旺号 */
+  kehu_ww: string;
   /** 客户姓名 */
   name: string;
-  /** 反馈/交稿时间 */
-  replytime: string;
-  /** 截止时间 */
-  endtime: string;
-  // P1A-07: 补全 38 字段完整声明（以 docs/ORDER_MODEL.md 字段账本为准）
+  /** 会员名 */
+  membername: string;
+  /** 是否绑定微信（0/1 标志位，非微信号） */
+  bindwechat: number;
+  /** 大买家标志 */
+  big_buyer_flag: string;
+  /** 是否老客户 */
+  is_regular_customer: boolean;
+
+  // ===== 品类/任务 =====
+  /** 标识标签（实测："普通"） */
+  sign: string;
+  /** 任务类型（实测："标准设计" | "修改设计"） */
+  tasktype: string;
+  /** 需求类型码（实测：1 | 4） */
+  needtype: number;
+  /** 色彩类型码 */
+  colorType: number;
+  /** 底色类型码 */
+  backgroundcolour: number;
+  /** 千里马/申请状态（实测："未申请"） */
+  isqll: string;
+
+  // ===== 时间 =====
+  /** 需求截止时间（实测格式 "2026-09-21 11:43:16"） */
+  timeneeds: string;
+  /** 需求创建时间 */
+  needscreatetime: string;
+  /** ERP 创建时间 */
+  erpcreatetime: string;
+  /** 完成时间 */
+  completetime: string;
+
+  // ===== 金额 =====
+  /** 销售金额（实测 0 | 79.31 | ...） */
+  sales: number;
+  /** 价格 */
+  money: number;
+  /** 设计费 */
+  design_money: number;
+
+  // ===== 排序 =====
+  /** 排序号（回显请求的 sort 参数） */
+  sort: number;
+
+  /** 兜底索引（未声明字段不进视图层） */
   [key: string]: unknown;
 }
 
 /** getOrderList.do 整体响应结构 */
 export interface LegacyOrderListResponse {
-  result: number;
-  data: {
+  result: boolean;
+  flag?: number;
+  message?: string;
+  data?: {
     countInfo: Record<string, number>;
     pageInfo: {
       total: number;
@@ -45,9 +116,4 @@ export interface LegacyOrderListResponse {
     };
     [key: string]: unknown;
   };
-}
-
-/** 详情容器（needsDetail2/needsid 主键，17 字段层级 + erpOrderJson + 版次 Products） */
-export interface LegacyOrderDetail {
-  [key: string]: unknown;
 }
