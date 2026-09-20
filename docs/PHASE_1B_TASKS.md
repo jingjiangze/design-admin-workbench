@@ -16,22 +16,24 @@
 
 | ID | 任务 | 状态 | 产出 | Commit |
 |----|------|------|------|--------|
-| P1B-DOC | 四份规格文档（本文件 + 3 SPEC） | PASS | docs/ 4 份 | - |
-| P1B-06a | 金额规则模型层（PricingRule + resolveOrderAmount 纯函数 + pricingRuleStore） | PASS | src/service/pricing/ | - |
-| P1B-07a | 收入计算服务（incomeService + IncomePolicy + 三层金额模型） | PASS | src/service/income/ | - |
-| P1B-TEST | pricing-rule.test.ts + income-calculation.test.ts（5 必测 Case） | PASS | 48/48 全绿 | - |
-| P1B-MOCK | Mock 数据扩充（金额特殊情况全覆盖） | PASS | mock/*.json | - |
-| P1B-01 | 整体视觉去模板化 + 导航定稿（催单→催稿、数据→收入） | PASS | 导航 6 项 | - |
-| P1B-02 | 首页设计工作台（搜索+4 卡+关注+最近订单+常用品类） | PASS | views/welcome | - |
-| P1B-03 | 全局搜索（订单号直开 Drawer / 客户店铺→列表 / 批量识别 / 快捷键） | PASS | components/GlobalSearch | - |
-| P1B-04 | 订单列表工作表（默认列精简 + 6 视图筛选） | PASS | views/order | - |
-| P1B-05 | 订单详情 Drawer（七区块 + 原始/统计金额区分 + 来源解释） | PASS | components/OrderDrawer | - |
-| P1B-06b | 品类中心金额规则编辑器（设置/恢复/批量 + 未定义醒目） | PASS | views/category | - |
-| P1B-07b | 收入页面（日/周/月 + 双口径 + 反查订单 + 未定义引导） | PASS | views/data→income | - |
-| P1B-08 | 催稿中心（待处理催稿/我要催稿/催稿记录三 tab） | PASS | views/expedite | - |
-| P1B-09 | 批量复制 + 催稿文本生成（模板/变量缺失显式标记） | PASS | 催稿中心内 | - |
-| P1B-10 | 真实只读数据接入验证（VITE_LEGACY_API_ENABLED=true） | PASS | 实测记录 §3 | - |
-| P1B-11 | 真实账号验收 + 三命令 + 最终报告 | PASS | 15 项报告（会话末） | - |
+| P1B-DOC | 四份规格文档（本文件 + 3 SPEC） | PASS | docs/ 4 份 | 17dd712 |
+| P1B-06a | 金额规则模型层（PricingRule + resolveOrderAmount 纯函数 + pricingRuleStore） | PASS | src/service/pricing/ | 888435d |
+| P1B-07a | 收入计算服务（incomeService + IncomePolicy + 三层金额模型） | PASS | src/service/income/ | 6957071 |
+| P1B-TEST | pricing-rule.test.ts + income-calculation.test.ts（5 必测 Case） | PASS | 70/70 全绿 | 888435d/6957071 内 |
+| P1B-MOCK | Mock 数据扩充（金额特殊情况全覆盖） | PASS | mock/*.json | 026932b/59511d6 附带 |
+| P1B-01 | 整体视觉去模板化 + 导航定稿（催单→催稿、数据→收入） | PASS | 导航 6 项 | 7dbd548 |
+| P1B-02 | 首页设计工作台（搜索+4 卡+关注+最近订单+常用品类） | PASS | views/welcome | 591a4b6 |
+| P1B-03 | 全局搜索（订单号直开 Drawer / 客户店铺→列表 / 批量识别 / 快捷键） | PASS | components/GlobalSearch | 591a4b6 |
+| P1B-04 | 订单列表工作表（默认列精简 + 6 视图筛选） | PASS | views/order | 026932b |
+| P1B-05 | 订单详情 Drawer（七区块 + 原始/统计金额区分 + 来源解释） | PASS | components/OrderDrawer | 026932b |
+| P1B-06b | 品类中心金额规则编辑器（设置/恢复/批量 + 未定义醒目） | PASS | views/category | 59511d6 |
+| P1B-07b | 收入页面（日/周/月 + 双口径 + 反查订单 + 未定义引导） | PASS | views/data→income | 1614eee |
+| P1B-08 | 催稿中心（待处理催稿/我要催稿/催稿记录三 tab） | PASS | views/expedite | ca53ae9 |
+| P1B-09 | 批量复制 + 催稿文本生成（模板/变量缺失显式标记） | PASS | 催稿中心内 | ca53ae9 |
+| P1B-10 | 真实只读数据接入验证（VITE_LEGACY_API_ENABLED=true） | PARTIAL | 见下方说明 | - |
+| P1B-11 | 真实账号验收 + 三命令 + 最终报告 | PASS | 15 项报告（§末） | 2c472d7 |
+
+**P1B-10 PARTIAL 说明**：真实拉通管道在 Phase 1A 已实证（P1A-06 Session Proof + P1A-07 Order API Proof，commit 链见 PHASE_1_TASKS.md）；Phase 1B 未改动 Adapter 数据通道（UI 层只消费 Domain Service，Adapter GET-only 未变）。但本会话内**未重新执行** `VITE_LEGACY_API_ENABLED=true` 端到端实测——需浏览器登录会话，登录凭据账号侧问题待用户确认（Phase 1A 遗留）。凭据确认后切换开关重测即可闭环。
 
 ## 开发顺序（长文 §46，已按依赖微调）
 
@@ -56,12 +58,12 @@
 | 13 | 催稿文本生成可用 | PASS |
 | 14 | 所有 Phase 1B UI 使用 Domain Service | PASS |
 | 15 | UI 不出现 legacy URL | PASS（ESLint no-restricted-syntax 延续） |
-| 16 | 真实旧系统仍只读 | PASS |
-| 17 | Mock / Real 可切换 | PASS（VITE_LEGACY_API_ENABLED） |
-| 18 | 关键金额计算测试全部通过 | PASS（48/48） |
-| 19 | pnpm lint 通过 | PASS（exit 0） |
-| 20 | pnpm test 通过 | PASS（48/48） |
-| 21 | pnpm build 通过 | PASS（15.6s / 2.25MB） |
+| 16 | 真实旧系统仍只读 | PASS（Adapter GET-only 未改动，见 P1B-10 说明） |
+| 17 | Mock / Real 可切换 | PASS（VITE_LEGACY_API_ENABLED，当前 false=Mock） |
+| 18 | 关键金额计算测试全部通过 | PASS（70/70，6 文件） |
+| 19 | pnpm lint 通过 | PASS（eslint+prettier+stylelint exit 0，P1B 终验） |
+| 20 | pnpm test 通过 | PASS（70/70，P1B 终验） |
+| 21 | pnpm build 通过 | PASS（18.45s / 2.33MB，P1B 终验） |
 
 ## 附加约束（长文专项）
 
