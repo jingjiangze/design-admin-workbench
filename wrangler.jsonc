@@ -24,8 +24,8 @@
     {
       "binding": "DB",
       "database_name": "design-workbench",
-      // TODO: npx wrangler d1 create design-workbench 后回填
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // [VERIFIED] 2026-09-20 wrangler d1 create design-workbench（region APAC）
+      "database_id": "c39661c8-db45-490b-ae24-7ef32029ba1d",
       "migrations_dir": "migrations"
     }
   ],
@@ -62,7 +62,8 @@
         {
           "binding": "DB",
           "database_name": "design-workbench-preview",
-          "database_id": "00000000-0000-0000-0000-000000000000",
+          // [VERIFIED] 2026-09-20 wrangler d1 create design-workbench-preview（region APAC）
+          "database_id": "c7801299-4c14-430c-bd02-6c89acb664a1",
           "migrations_dir": "migrations"
         }
       ],
