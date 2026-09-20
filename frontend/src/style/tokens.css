@@ -31,10 +31,16 @@
   /* 状态色 —— 只用于状态点/状态文字/危险操作，不做彩色卡片（§十七） */
   --app-danger: #c6483e;
   --app-danger-soft: #f9eceb;
+  --app-on-danger: #ffffff;
   --app-warning: #a16207;
   --app-warning-soft: #f7f0dd;
   --app-success: #3d7a4e;
   --app-success-soft: #e9f2eb;
+
+  /* 场景语义变量（Light/Dark 双主题各自取值） */
+  --app-overlay-bg: rgb(24 24 27 / 32%);
+  --app-border-hover: rgb(0 0 0 / 28%);
+  --app-skeleton: #eeeeec;
 
   /* ── 圆角（§十九：常规 6/8，浮层 10） ── */
   --radius-sm: 6px;
@@ -252,12 +258,7 @@ body {
 
 /* 骨架/加载：静默化 */
 .el-skeleton__item {
-  background: linear-gradient(
-    90deg,
-    #eeeeec 25%,
-    #f4f4f2 37%,
-    #eeeeec 63%
-  );
+  background: linear-gradient(90deg, #eeeeec 25%, #f4f4f2 37%, #eeeeec 63%);
   border-radius: var(--radius-sm);
 }
 
@@ -273,3 +274,109 @@ body {
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   夜间模式（Phase UI-DARK）—— html.dark 覆盖层
+   规则与 Light 同构：同样的 token 名、同样的语义、仅取值反转。
+   特异性 html.dark (0,1,1) 高于 :root (0,1,0)，与 EP dark css-vars
+   （同特异性）靠业务侧 CSS 后置加载取胜。
+   ═══════════════════════════════════════════════════════════════ */
+html.dark {
+  /* ── 色板（Modern Minimal · Dark） ── */
+  --app-bg: #131315;
+  --app-surface: #1c1c1f;
+  --app-surface-hover: #232326;
+  --app-surface-active: #2a2a2e;
+
+  --app-border: rgb(255 255 255 / 8%);
+  --app-border-strong: rgb(255 255 255 / 16%);
+  --app-border-hover: rgb(255 255 255 / 28%);
+
+  --app-text: #f4f4f5;
+  --app-text-secondary: #b4b4bc;
+  --app-text-muted: #8b8b93;
+  --app-text-faint: #61616a;
+
+  /* accent 反转：深色主题下实底用浅色、其上文字用深色 */
+  --app-accent: #f4f4f5;
+  --app-accent-hover: #e4e4e7;
+  --app-accent-soft: #2a2a2e;
+  --app-accent-text: #131315;
+
+  /* 状态色：dark 下提亮一档保可读，soft 变体改为半透明底 */
+  --app-danger: #e5695f;
+  --app-danger-soft: rgb(229 105 95 / 14%);
+  --app-on-danger: #1a0d0b;
+  --app-warning: #d9a521;
+  --app-warning-soft: rgb(217 165 33 / 14%);
+  --app-success: #5ba571;
+  --app-success-soft: rgb(91 165 113 / 14%);
+
+  /* 场景语义 */
+  --app-overlay-bg: rgb(0 0 0 / 55%);
+  --app-skeleton: #26262a;
+
+  /* 阴影：dark 下加深才能维持同样的"浮层抬起"层级感 */
+  --shadow-overlay: 0 8px 32px rgb(0 0 0 / 50%);
+  --shadow-overlay-soft: 0 4px 16px rgb(0 0 0 / 35%);
+
+  /* ═══ Element Plus 收敛（Dark） ═══ */
+  --el-color-primary: #f4f4f5;
+  --el-color-primary-light-3: #c9c9ce;
+  --el-color-primary-light-5: #9a9aa1;
+  --el-color-primary-light-7: #5c5c63;
+  --el-color-primary-light-8: #45454b;
+  --el-color-primary-light-9: #2b2b30;
+  --el-color-primary-dark-2: #ffffff;
+
+  --el-bg-color: #1c1c1f;
+  --el-bg-color-page: #131315;
+  --el-bg-color-overlay: #232326;
+
+  --el-border-color: rgb(255 255 255 / 14%);
+  --el-border-color-light: rgb(255 255 255 / 10%);
+  --el-border-color-lighter: rgb(255 255 255 / 8%);
+  --el-border-color-extra-light: rgb(255 255 255 / 6%);
+
+  --el-fill-color-light: #232326;
+  --el-fill-color-lighter: #1e1e21;
+  --el-fill-color-blank: #1c1c1f;
+
+  --el-text-color-primary: #f4f4f5;
+  --el-text-color-regular: #b4b4bc;
+  --el-text-color-secondary: #8b8b93;
+  --el-text-color-placeholder: #61616a;
+
+  --el-table-header-bg-color: #1a1a1d;
+  --el-table-header-text-color: #8b8b93;
+  --el-table-border-color: rgb(255 255 255 / 7%);
+  --el-table-row-hover-bg-color: #202023;
+  --el-table-tr-bg-color: transparent;
+}
+
+/* ── Dark：组件级微调（对应 Light 的硬编码底色） ── */
+html.dark .el-button--primary {
+  --el-button-active-bg-color: #ffffff;
+  --el-button-active-border-color: #ffffff;
+  --el-button-disabled-bg-color: #45454b;
+  --el-button-disabled-border-color: #45454b;
+}
+
+html.dark .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 28%) inset;
+}
+
+html.dark .el-skeleton__item {
+  background: linear-gradient(
+    90deg,
+    #1e1e21 25%,
+    #26262a 37%,
+    #1e1e21 63%
+  );
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 18%);
+}
+
+/* 图标颜色跟随文本变量（AppIcon stroke 用 currentColor，无需处理） */

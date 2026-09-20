@@ -55,7 +55,12 @@
  */
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { ElTooltip, ElDropdown, ElDropdownMenu, ElDropdownItem } from "element-plus";
+import {
+  ElTooltip,
+  ElDropdown,
+  ElDropdownMenu,
+  ElDropdownItem
+} from "element-plus";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import AppSearch from "@/components/ui/AppSearch.vue";
 import { fetchExpediteMessages } from "@/service/expedite";
@@ -98,27 +103,29 @@ const avatarText = computed(() => {
 
 <style scoped>
 .app-header {
-  height: var(--header-height);
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-  padding: 0 var(--space-6);
-  background: var(--app-surface);
-  border-bottom: 1px solid var(--app-border);
   position: sticky;
   top: 0;
   z-index: 20;
+  display: flex;
+  gap: var(--space-6);
+  align-items: center;
+  height: var(--header-height);
+  padding: 0 var(--space-6);
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-border);
 }
 
 .app-header__brand {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
   flex-shrink: 0;
+  gap: var(--space-2);
+  align-items: center;
 }
+
 .app-header__logo {
   color: var(--app-accent);
 }
+
 .app-header__title {
   font-size: 14px;
   font-weight: 600;
@@ -132,39 +139,45 @@ const avatarText = computed(() => {
   margin: 0 auto;
   cursor: pointer;
 }
+
 .app-header__search :deep(.app-search) {
   cursor: pointer;
 }
+
 .app-header__search :deep(.app-search__input) {
   cursor: pointer;
 }
 
 .app-header__actions {
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
   flex-shrink: 0;
+  gap: var(--space-3);
+  align-items: center;
   margin-left: auto;
 }
 
 .app-header__icon-btn {
   position: relative;
-  width: 34px;
-  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md);
+  width: 34px;
+  height: 34px;
   color: var(--app-text-muted);
   cursor: pointer;
-  transition: background-color 140ms ease, color 140ms ease;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
+
 .app-header__icon-btn:hover {
-  background: var(--app-surface-hover);
   color: var(--app-text);
+  background: var(--app-surface-hover);
 }
+
 .app-header__badge {
   position: absolute;
   top: 2px;
@@ -172,31 +185,32 @@ const avatarText = computed(() => {
   min-width: 15px;
   height: 15px;
   padding: 0 4px;
-  border-radius: 999px;
-  background: var(--app-danger);
-  color: #fff;
   font-size: 10px;
   font-weight: 600;
   line-height: 15px;
+  color: var(--app-on-danger);
   text-align: center;
+  background: var(--app-danger);
+  border-radius: 999px;
 }
 
 .app-header__avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: 1px solid var(--app-border-strong);
-  background: var(--app-accent-soft);
-  color: var(--app-text);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--app-text);
+  cursor: pointer;
+  background: var(--app-accent-soft);
+  border: 1px solid var(--app-border-strong);
+  border-radius: 50%;
   transition: border-color 140ms ease;
 }
+
 .app-header__avatar:hover {
-  border-color: rgba(0, 0, 0, 0.28);
+  border-color: var(--app-border-hover);
 }
 </style>

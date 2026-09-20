@@ -36,23 +36,24 @@ const emit = defineEmits<{ click: [e: MouseEvent] }>();
 <style scoped>
 .app-btn {
   display: inline-flex;
-  align-items: center;
   gap: 6px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  align-items: center;
   font-family: inherit;
   font-weight: 500;
-  cursor: pointer;
   white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
     color 140ms ease,
     opacity 140ms ease;
 }
+
 .app-btn:disabled {
-  opacity: 0.45;
   cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .app-btn--md {
@@ -60,6 +61,7 @@ const emit = defineEmits<{ click: [e: MouseEvent] }>();
   padding: 0 14px;
   font-size: 13.5px;
 }
+
 .app-btn--sm {
   height: 28px;
   padding: 0 10px;
@@ -67,37 +69,41 @@ const emit = defineEmits<{ click: [e: MouseEvent] }>();
 }
 
 .app-btn--solid {
-  background: var(--app-accent);
   color: var(--app-accent-text);
+  background: var(--app-accent);
 }
+
 .app-btn--solid:hover:not(:disabled) {
   background: var(--app-accent-hover);
 }
 
 .app-btn--ghost {
+  color: var(--app-text);
   background: var(--app-surface);
   border-color: var(--app-border-strong);
-  color: var(--app-text);
 }
+
 .app-btn--ghost:hover:not(:disabled) {
-  border-color: rgba(0, 0, 0, 0.28);
   background: var(--app-surface);
+  border-color: var(--app-border-hover);
 }
 
 .app-btn--text {
-  background: transparent;
   color: var(--app-text-secondary);
+  background: transparent;
 }
+
 .app-btn--text:hover:not(:disabled) {
   color: var(--app-text);
   background: var(--app-surface-hover);
 }
 
 .app-btn--danger {
-  background: var(--app-surface);
-  border-color: rgba(198, 72, 62, 0.4);
   color: var(--app-danger);
+  background: var(--app-surface);
+  border-color: color-mix(in srgb, var(--app-danger) 40%, transparent);
 }
+
 .app-btn--danger:hover:not(:disabled) {
   background: var(--app-danger-soft);
   border-color: var(--app-danger);

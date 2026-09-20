@@ -23,6 +23,22 @@
     </div>
 
     <section class="account__section">
+      <h2 class="account__section-title">外观</h2>
+      <div class="account__theme" role="group" aria-label="外观模式">
+        <button
+          v-for="opt in themeOptions"
+          :key="opt.value"
+          class="account__theme-pill"
+          :class="{ 'is-active': theme === opt.value }"
+          type="button"
+          @click="setTheme(opt.value)"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+    </section>
+
+    <section class="account__section">
       <h2 class="account__section-title">我的数据</h2>
       <button class="account__row" type="button" @click="goCategory">
         <span>金额规则</span>
@@ -56,6 +72,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
 import { AppButton, AppIcon } from "@/components/ui";
+import { useTheme, type ThemeMode } from "@/hooks/useTheme";
 import {
   getUserIdentity,
   listRules
@@ -66,6 +83,13 @@ import { removeToken } from "@/utils/auth";
 defineOptions({ name: "AccountInfo" });
 
 const router = useRouter();
+const { mode: theme, setTheme } = useTheme();
+
+const themeOptions: { value: ThemeMode; label: string }[] = [
+  { value: "light", label: "浅色" },
+  { value: "dark", label: "深色" },
+  { value: "system", label: "跟随系统" }
+];
 
 const userIdentity = ref(getUserIdentity() || "设计师");
 const ruleCount = ref(0);
@@ -164,6 +188,40 @@ async function logout() {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+}
+
+.account__theme {
+  display: inline-flex;
+  gap: 4px;
+  width: fit-content;
+  padding: 3px;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--radius-md);
+}
+
+.account__theme-pill {
+  padding: 5px 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.account__theme-pill:hover {
+  color: var(--app-text-secondary);
+}
+
+.account__theme-pill.is-active {
+  color: var(--app-accent-text);
+  background: var(--app-accent);
 }
 
 .account__section-title {

@@ -38,20 +38,24 @@ const widths = computed(() =>
   gap: var(--space-3);
   padding: var(--space-2) 0;
 }
+
 .app-skeleton__row {
   height: 14px;
+  background: var(--app-skeleton);
   border-radius: var(--radius-sm);
-  background: #eeeeec;
   animation: app-skeleton-breath 1.2s ease-in-out infinite;
 }
+
 .app-skeleton__row--table {
   height: 34px;
 }
+
 @keyframes app-skeleton-breath {
   0%,
   100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.55;
   }

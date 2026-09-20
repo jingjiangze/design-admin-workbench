@@ -8,8 +8,25 @@
       name="viewport"
       content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=0"
     />
-    <title>pure-admin-thin</title>
+    <title>设计工作台</title>
     <link rel="icon" href="/favicon.ico" />
+    <script>
+      // 夜间模式防闪烁（FOUC）：在首帧渲染前同步解析主题偏好。
+      // 规则与 useTheme.ts 一致：dark / 未设置且系统偏好深色 → html.dark
+      (function () {
+        try {
+          var t = localStorage.getItem("dw:theme");
+          var dark =
+            t === "dark" ||
+            ((!t || t === "system") &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) {
+            document.documentElement.classList.add("dark");
+            document.documentElement.style.background = "#131315";
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
 
   <body>

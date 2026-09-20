@@ -1,14 +1,14 @@
 <template>
   <Teleport to="body">
     <Transition name="app-palette">
-      <div
-        v-if="visible"
-        class="app-palette__mask"
-        @mousedown.self="close"
-      >
+      <div v-if="visible" class="app-palette__mask" @mousedown.self="close">
         <div class="app-palette" role="dialog" aria-label="全局搜索">
           <div class="app-palette__input-row">
-            <AppIcon name="search" :size="17" class="app-palette__search-icon" />
+            <AppIcon
+              name="search"
+              :size="17"
+              class="app-palette__search-icon"
+            />
             <input
               ref="inputRef"
               v-model="query"
@@ -21,12 +21,17 @@
               @keydown.esc.prevent="close"
               @input="onQueryInput"
             />
-            <button class="app-palette__kbd" type="button" tabindex="-1" @click="close">
+            <button
+              class="app-palette__kbd"
+              type="button"
+              tabindex="-1"
+              @click="close"
+            >
               Esc
             </button>
           </div>
 
-          <div class="app-palette__body" ref="bodyRef">
+          <div ref="bodyRef" class="app-palette__body">
             <template v-if="query.trim() === ''">
               <div v-if="recentSearches.length" class="app-palette__section">
                 <div class="app-palette__section-title">
@@ -43,18 +48,26 @@
                   v-for="(r, i) in recentSearches"
                   :key="r"
                   class="app-palette__row"
-                  :class="{ 'app-palette__row--active': activeIndex === flatOffset + i }"
+                  :class="{
+                    'app-palette__row--active': activeIndex === flatOffset + i
+                  }"
                   type="button"
                   @mouseenter="activeIndex = flatOffset + i"
                   @click="applyRecent(r)"
                 >
-                  <AppIcon name="history" :size="14" class="app-palette__row-icon" />
+                  <AppIcon
+                    name="history"
+                    :size="14"
+                    class="app-palette__row-icon"
+                  />
                   <span class="app-palette__row-title app-mono">{{ r }}</span>
                 </button>
               </div>
               <div v-else class="app-palette__hint">
                 <p>输入订单号 / 店铺 / 客户 / 品类开始搜索</p>
-                <p class="app-palette__hint-sub">↑↓ 选择 · Enter 打开 · Esc 关闭</p>
+                <p class="app-palette__hint-sub">
+                  ↑↓ 选择 · Enter 打开 · Esc 关闭
+                </p>
               </div>
             </template>
 
@@ -73,8 +86,12 @@
                     @mouseenter="activeIndex = i"
                     @click="goOrder(o.orderNo)"
                   >
-                    <span class="app-palette__row-title app-mono">{{ o.orderNo }}</span>
-                    <span class="app-palette__row-sub">{{ o.productName || o.taskType }}</span>
+                    <span class="app-palette__row-title app-mono">{{
+                      o.orderNo
+                    }}</span>
+                    <span class="app-palette__row-sub">{{
+                      o.productName || o.taskType
+                    }}</span>
                     <span class="app-palette__row-extra">{{ o.shop }}</span>
                     <AppStatus :label="o.stateLabel" />
                   </button>
@@ -87,13 +104,16 @@
                     :key="`g-${g.goodsId}-${g.subGoodsId}`"
                     class="app-palette__row"
                     :class="{
-                      'app-palette__row--active': activeIndex === orderHits.length + i
+                      'app-palette__row--active':
+                        activeIndex === orderHits.length + i
                     }"
                     type="button"
                     @mouseenter="activeIndex = orderHits.length + i"
                     @click="goCategory(g.displayName)"
                   >
-                    <span class="app-palette__row-title">{{ g.displayName }}</span>
+                    <span class="app-palette__row-title">{{
+                      g.displayName
+                    }}</span>
                     <span class="app-palette__row-sub">{{ g.group }}</span>
                   </button>
                 </div>
@@ -150,7 +170,10 @@ const activeIndex = ref(0);
 /** 最近搜索区在扁平导航序列中的起始偏移（无输入时只有最近区） */
 const flatOffset = computed(() => 0);
 const flatCount = computed(
-  () => orderHits.value.length + goodsHits.value.length + recentSearches.value.length
+  () =>
+    orderHits.value.length +
+    goodsHits.value.length +
+    recentSearches.value.length
 );
 
 watch(
@@ -268,7 +291,9 @@ function loadRecent(): string[] {
   try {
     const raw = localStorage.getItem(RECENT_KEY);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-    return Array.isArray(parsed) ? parsed.filter(t => typeof t === "string") : [];
+    return Array.isArray(parsed)
+      ? parsed.filter(t => typeof t === "string")
+      : [];
   } catch {
     return [];
   }
@@ -280,125 +305,137 @@ function loadRecent(): string[] {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(24, 24, 27, 0.32);
   display: flex;
-  justify-content: center;
   align-items: flex-start;
+  justify-content: center;
   padding-top: 14vh;
+  background: var(--app-overlay-bg);
 }
 
 .app-palette {
+  display: flex;
+  flex-direction: column;
   width: 600px;
   max-width: calc(100vw - 48px);
   max-height: 62vh;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
   background: var(--app-surface);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-overlay);
-  overflow: hidden;
 }
 
 .app-palette__input-row {
   display: flex;
-  align-items: center;
+  flex-shrink: 0;
   gap: var(--space-3);
+  align-items: center;
   padding: var(--space-4) var(--space-4);
   border-bottom: 1px solid var(--app-border);
-  flex-shrink: 0;
 }
+
 .app-palette__search-icon {
   color: var(--app-text-faint);
 }
+
 .app-palette__input {
   flex: 1;
-  border: none;
-  outline: none;
-  font-size: 15px;
-  font-family: inherit;
-  color: var(--app-text);
-  background: transparent;
   min-width: 0;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--app-text);
+  outline: none;
+  background: transparent;
+  border: none;
 }
+
 .app-palette__input::placeholder {
   color: var(--app-text-faint);
 }
+
 .app-palette__kbd {
-  border: 1px solid var(--app-border);
-  background: var(--app-surface);
-  border-radius: 4px;
-  color: var(--app-text-faint);
-  font-size: 11px;
   padding: 3px 6px;
-  cursor: pointer;
   font-family: inherit;
+  font-size: 11px;
+  color: var(--app-text-faint);
+  cursor: pointer;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 4px;
 }
 
 .app-palette__body {
-  overflow-y: auto;
-  padding: var(--space-2) var(--space-2) var(--space-3);
   min-height: 120px;
+  padding: var(--space-2) var(--space-2) var(--space-3);
+  overflow-y: auto;
 }
 
 .app-palette__section {
   margin-top: var(--space-2);
 }
+
 .app-palette__section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-2) var(--space-1);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--app-text-faint);
   letter-spacing: 0.04em;
-  padding: var(--space-2) var(--space-2) var(--space-1);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
+
 .app-palette__clear-recent {
-  border: none;
-  background: none;
+  font-family: inherit;
   font-size: 11.5px;
   color: var(--app-text-faint);
   cursor: pointer;
-  font-family: inherit;
+  background: none;
+  border: none;
 }
+
 .app-palette__clear-recent:hover {
   color: var(--app-text-secondary);
 }
 
 .app-palette__row {
-  width: 100%;
   display: flex;
-  align-items: center;
   gap: var(--space-3);
+  align-items: center;
+  width: 100%;
   padding: 9px var(--space-2);
-  border: none;
-  background: transparent;
-  border-radius: var(--radius-md);
-  cursor: pointer;
   font-family: inherit;
-  text-align: left;
   color: var(--app-text);
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
 }
+
 .app-palette__row--active,
 .app-palette__row:hover {
   background: var(--app-surface-hover);
 }
+
 .app-palette__row-icon {
   color: var(--app-text-faint);
 }
+
 .app-palette__row-title {
   font-size: 13.5px;
   font-weight: 500;
   color: var(--app-text);
   white-space: nowrap;
 }
+
 .app-palette__row-sub {
-  font-size: 12.5px;
-  color: var(--app-text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12.5px;
+  color: var(--app-text-muted);
   white-space: nowrap;
 }
+
 .app-palette__row-extra {
   margin-left: auto;
   font-size: 12.5px;
@@ -408,13 +445,15 @@ function loadRecent(): string[] {
 
 .app-palette__hint {
   padding: var(--space-6) var(--space-4);
-  text-align: center;
-  color: var(--app-text-muted);
   font-size: 13px;
+  color: var(--app-text-muted);
+  text-align: center;
 }
+
 .app-palette__hint p {
   margin: 0 0 var(--space-1);
 }
+
 .app-palette__hint-sub {
   font-size: 12px;
   color: var(--app-text-faint);
@@ -425,17 +464,22 @@ function loadRecent(): string[] {
 .app-palette-leave-active {
   transition: opacity 150ms ease;
 }
+
 .app-palette-enter-active .app-palette,
 .app-palette-leave-active .app-palette {
-  transition: transform 150ms ease, opacity 150ms ease;
+  transition:
+    transform 150ms ease,
+    opacity 150ms ease;
 }
+
 .app-palette-enter-from,
 .app-palette-leave-to {
   opacity: 0;
 }
+
 .app-palette-enter-from .app-palette,
 .app-palette-leave-to .app-palette {
-  transform: translateY(-6px) scale(0.99);
   opacity: 0;
+  transform: translateY(-6px) scale(0.99);
 }
 </style>

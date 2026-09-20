@@ -20,6 +20,9 @@ import "./style/index.scss";
 // 一定要在main.ts中导入tailwind.css，防止vite每次hmr都会请求src/style/index.scss整体css文件导致热更新慢的问题
 import "./style/tailwind.css";
 import "element-plus/dist/index.css";
+// EP 夜间模式基线（html.dark 变量）。业务侧 tokens.css 的 html.dark 收敛块
+// 在构建产物中后置加载（vendor css 先于业务 css），同特异性下由顺序取胜。
+import "element-plus/theme-chalk/dark/css-vars.css";
 // 导入字体图标（iconfont.js 已移至 public/ 由 index.html 直接加载，不进 rollup 模块图）
 import "./assets/iconfont/iconfont.css";
 
