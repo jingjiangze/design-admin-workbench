@@ -1,0 +1,53 @@
+{
+  "result": true,
+  "message": "操作成功",
+  "data": {
+    "total": 4,
+    "list": [
+      {
+        "id": "msg_001",
+        "needsid": "8529200555",
+        "ordernum": "TT_TEST_PVC001",
+        "goodsname": "PVC名片",
+        "shop": "益好旗舰店",
+        "timeneeds": "2026-09-20 16:30",
+        "remindnote": "客户留言：尽快出稿，今晚要印刷",
+        "sendtime": "2026-09-20 09:30:00",
+        "isread": 0
+      },
+      {
+        "id": "msg_002",
+        "needsid": "8529200556",
+        "ordernum": "TT_TEST_MULTI1",
+        "goodsname": "宣传单",
+        "shop": "益好旗舰店",
+        "timeneeds": "2026-09-22 12:00",
+        "remindnote": "第二版打回，注意修改尺寸",
+        "sendtime": "2026-09-20 10:15:00",
+        "isread": 0
+      },
+      {
+        "id": "msg_003",
+        "needsid": "8529200557",
+        "ordernum": "TT_TEST_REVIEW1",
+        "goodsname": "海报",
+        "shop": "锦礼优选店",
+        "timeneeds": "2026-09-21 12:00",
+        "remindnote": "运营催：审核通过后立即交付",
+        "sendtime": "2026-09-20 11:02:00",
+        "isread": 0
+      },
+      {
+        "id": "msg_004",
+        "needsid": "8529200558",
+        "ordernum": "TT_TEST_AMT0",
+        "goodsname": "普通名片",
+        "shop": "锦礼优选店",
+        "timeneeds": "2026-09-21 18:00",
+        "remindnote": "已电话沟通，明天交付即可",
+        "sendtime": "2026-09-19 15:40:00",
+        "isread": 1
+      }
+    ]
+  }
+}
