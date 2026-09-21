@@ -193,8 +193,9 @@
  * 催稿工作台（Phase UI-R1 §三十一/§三十二；2026-09-21 用户指令改版）
  * - 相同订单号催稿合并为一组（显示最新一条 + 催 N 次）；
  * - 默认只显示昨天和今天的催稿，可切「显示全部」；
- * - 已接收默认按已处理显示（用户指令）；「一键处理已完成」为本地标记
- *   （旧系统无已读/发送写 API [VERIFIED]，处理态仅本系统视图，按身份持久化）；
+ * - 已接收默认按已处理显示（用户指令）；「一键处理已完成」为个人防漏单标记
+ *   （旧系统无"处理"写 API [VERIFIED]，处理态仅本系统视图；D1 持久化 + 身份隔离，
+ *   WORKFLOW-V2：绿点 ≠ 已读 ≠ 旧系统状态）；
  * - 重点 = 一次完成：勾选 → 生成催稿文本 → 复制；无"发送催稿"入口。
  */
 import { computed, onMounted, ref, watch } from "vue";
@@ -216,6 +217,11 @@ import {
 } from "@/service/expedite";
 import { fetchOrders } from "@/service/order";
 import { isLegacyRealEnabled } from "@/service/gateway";
+import {
+  listHandledMarkers,
+  markHandled,
+  reminderMarkerKey
+} from "@/service/workflow";
 import { getUserIdentity } from "@/service/pricing/pricing-rule-store";
 import type { OrderListItem } from "@/service/types";
 
@@ -236,34 +242,59 @@ const loadError = ref(false);
 
 /** 默认只显示昨天+今天（用户指令）；「显示全部」切换 */
 const showAll = ref(false);
-/** 本地处理态：按身份持久化（旧系统无写 API，诚实标注"本地标记"） */
+/**
+ * 个人处理态（WORKFLOW-V2）：D1 work_item_marker 持久化（跨刷新/重登录/
+ * 换设备保留，按身份隔离）。旧系统无"处理"写 API [VERIFIED]（仅已读族，
+ * 语义=已读≠已处理），故本标记仅为本系统防漏单视图，诚实命名"我已处理"。
+ */
 const processedIds = ref<Set<string>>(new Set());
-const PROCESSED_KEY = `expediteProcessed:${getUserIdentity()}`;
 
-function loadProcessed(): Set<string> {
+/** 旧版 localStorage 标记一次性迁移到 D1 标记（迁移成功后清除旧 key） */
+async function migrateLegacyLocalMarks(): Promise<void> {
+  const legacyKey = `expediteProcessed:${getUserIdentity()}`;
+  let raw: string | null = null;
   try {
-    const raw = localStorage.getItem(PROCESSED_KEY);
-    return new Set(raw ? (JSON.parse(raw) as string[]) : []);
+    raw = localStorage.getItem(legacyKey);
   } catch {
-    return new Set();
+    return;
+  }
+  if (!raw) return;
+  try {
+    const ids = JSON.parse(raw) as unknown;
+    if (Array.isArray(ids) && ids.length) {
+      await markHandled(
+        (ids as unknown[])
+          .map(id => String(id))
+          .filter(id => /^\d+$/.test(id))
+          .map(reminderMarkerKey)
+      );
+    }
+  } catch {
+    // 坏数据：直接清除
+  }
+  try {
+    localStorage.removeItem(legacyKey);
+  } catch {
+    // 清除失败不影响主流程（下次仍会尝试迁移；标记幂等）
   }
 }
 
-function persistProcessed(): void {
+async function loadProcessed(): Promise<void> {
+  await migrateLegacyLocalMarks();
   try {
-    localStorage.setItem(
-      PROCESSED_KEY,
-      JSON.stringify([...processedIds.value])
+    const map = await listHandledMarkers();
+    processedIds.value = new Set(
+      [...map.keys()].filter(k => k.startsWith("reminder:"))
     );
   } catch {
-    // 存储满等异常：静默（仅影响本地标记持久化）
+    // 拉取失败：保留现有集合（不静默清空用户已标记数据）
   }
 }
 
 watch(
   () => getUserIdentity(),
   () => {
-    processedIds.value = loadProcessed();
+    void loadProcessed();
   }
 );
 
@@ -365,7 +396,7 @@ async function load() {
   loadError.value = false;
   try {
     messages.value = await fetchExpediteMessages();
-    processedIds.value = loadProcessed();
+    await loadProcessed();
   } catch {
     messages.value = [];
     loadError.value = true;
@@ -384,20 +415,25 @@ function clearSelection() {
   selected.value = new Set();
 }
 
-/** 一键处理已完成：本地标记当前可见全部组（旧系统无写 API，仅本系统视图） */
-function markVisibleProcessed() {
+/** 一键处理已完成：本地标记当前可见全部组（旧系统无"处理"写 API，仅本系统防漏单视图） */
+async function markVisibleProcessed() {
   const targets = visibleGroups.value.filter(g => !isGroupDone(g));
   if (!targets.length) {
     ElMessage.info("当前列表没有待处理的催稿");
     return;
   }
-  const next = new Set(processedIds.value);
-  for (const g of targets) for (const id of g.allIds) next.add(id);
-  processedIds.value = next;
-  persistProcessed();
-  ElMessage.success(
-    `已本地标记 ${targets.length} 组为已处理（不影响旧系统状态）`
-  );
+  const items = targets.flatMap(g => g.allIds.map(reminderMarkerKey));
+  try {
+    await markHandled(items);
+    const next = new Set(processedIds.value);
+    for (const it of items) next.add(it.itemKey);
+    processedIds.value = next;
+    ElMessage.success(
+      `已标记 ${targets.length} 组为已处理（不影响旧系统状态）`
+    );
+  } catch {
+    ElMessage.error("标记失败，请重试");
+  }
 }
 
 async function markRead(id: string) {

@@ -29,6 +29,7 @@ import {
 } from "./legacy/income";
 import { handleAcceptance } from "./acceptance/routes";
 import { handleScheduledAcceptance } from "./acceptance/cron";
+import { handleWorkflow } from "./workflow/routes";
 import {
   parsePriceChangeQuery,
   fetchLegacyPriceChange
@@ -181,6 +182,11 @@ export default {
       // 写操作已获用户授权（2026-09-21，updateWorkState.do）；不真实测试切换。
       if (path.startsWith("/api/acceptance")) {
         return await handleAcceptance(env, request, path, ctx);
+      }
+
+      // ── 业务反馈 + 个人防漏单标记（WORKFLOW-V2：markers / takeover）──
+      if (path.startsWith("/api/workflow")) {
+        return await handleWorkflow(env, request, path, ctx);
       }
 
       // ── 其余 /api/* 一律 404（白名单之外不存在任何代理能力） ──

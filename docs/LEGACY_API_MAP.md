@@ -23,7 +23,7 @@
 | /chsjs/child/needsDetail.do?applyid= | GET | 需求详情（按申请） | applyid | 页面/JSON 未验证 | [VERIFIED] 引用 |
 | /chsjs/child/needsDetail2.do?needsid= | GET | 需求详情（按需求） | needsid | 未验证 | [VERIFIED] 引用 |
 | /chsjs/designer/needsDetail.do?needsid= | GET | 需求详情（designer 空间版） | needsid | 未验证 | [VERIFIED] 引用 |
-| /chsjs/child/batchTakeover.do | POST | 批量接单 | JSON `{applyidArr:"1,2,3"}` 或 `{needsidArr:...}` | 未验证（未调用） | [VERIFIED] 源码 |
+| /chsjs/child/batchTakeover.do | POST | 批量接单 | JSON `{applyidArr:"1,2,3"}` 或 `{needsidArr:...}` | 未验证（未调用） | [VERIFIED] 源码；2026-09-21 WORKFLOW-V2 接入 staging 网关（worker/src/workflow/legacy-actions.ts，逐条调用；真实测试待用户授权 + 指定测试订单） |
 | /chsjs/child/insertAbnormalOrder.do | POST | 标记异常订单 | JSON `{needsidArr}` | 未验证（未调用） | [VERIFIED] 源码 |
 | /chsjs/child/getReasons.do | GET | 申诉原因树 | — | 未验证 | [VERIFIED] 引用 |
 | /chsjs/specialApply/insertSpecialOrder.do | POST | 特殊订单申请 | JSON `{reasonid,remark,applyimgs,needsid}`（凭证必填） | 未验证（未调用） | [VERIFIED] 源码 |
