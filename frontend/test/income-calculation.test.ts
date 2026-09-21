@@ -4,7 +4,7 @@
  * 覆盖：状态过滤 / 双口径 / 未定义显式计数（不计入）/ 0 元计入 /
  * 日周月区间 / 品类分布 / 反查订单。
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   getIncomeSummary,
   getIncomeByCategory,
@@ -161,9 +161,16 @@ describe("日期区间（本日/本周/本月）", () => {
   const policy = DEFAULT_INCOME_POLICY;
 
   it("本周预设 = 周一起始", () => {
-    // 2026-09-20 是周日 → 周一为 2026-09-14
-    const { from } = DEFAULT_RANGE_PRESETS.week();
-    expect(dateKey(from)).toBe("2026-09-14");
+    // 固定时钟到 2026-09-20（周日）→ 周一为 2026-09-14
+    // （fake timers 隔离真实日期滚动，否则跨天后该测试必然失败）
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 8, 20, 12, 0, 0));
+    try {
+      const { from } = DEFAULT_RANGE_PRESETS.week();
+      expect(dateKey(from)).toBe("2026-09-14");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("本月预设 = 1 号起始", () => {
