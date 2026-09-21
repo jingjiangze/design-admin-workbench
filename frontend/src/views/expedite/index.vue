@@ -6,7 +6,7 @@
         待处理 {{ pendingCount }}
       </span>
       <button
-        v-if="pendingCount > 0"
+        v-if="!isRealMode && pendingCount > 0"
         class="expedite__read-all"
         type="button"
         @click="readAll"
@@ -18,6 +18,13 @@
     <!-- 列表（§三十一：行式信息，非卡片墙） -->
     <div class="expedite__list">
       <AppSkeleton v-if="loading" :rows="5" type="table" />
+      <AppEmpty
+        v-else-if="loadError"
+        icon="close"
+        text="加载失败——旧系统催稿消息暂时无法读取，请稍后重试"
+      >
+        <AppButton variant="ghost" size="sm" @click="load">重试</AppButton>
+      </AppEmpty>
       <template v-else-if="messages.length">
         <div
           v-for="m in messages"
@@ -39,7 +46,10 @@
               <span class="app-mono expedite__no">{{ m.orderNo }}</span>
               <span class="expedite__muted">{{ m.category || "—" }}</span>
               <span class="expedite__muted">{{ m.shop }}</span>
-              <span v-if="!m.read" class="expedite__unread-dot" />
+              <span v-if="m.status" class="expedite__status">{{
+                m.status
+              }}</span>
+              <span v-else-if="!m.read" class="expedite__unread-dot" />
             </div>
             <div class="expedite__note">{{ m.note || "（无催稿备注）" }}</div>
           </div>
@@ -56,7 +66,7 @@
               查看订单
             </AppButton>
             <AppButton
-              v-if="!m.read"
+              v-if="!isRealMode && !m.read"
               variant="text"
               size="sm"
               icon="check"
@@ -185,6 +195,7 @@ import {
   type RemindTone
 } from "@/service/expedite";
 import { fetchOrders } from "@/service/order";
+import { isLegacyRealEnabled } from "@/service/gateway";
 import type { OrderListItem } from "@/service/types";
 
 defineOptions({ name: "ExpediteList" });
@@ -197,6 +208,10 @@ const TONES: Array<{ key: Exclude<RemindTone, "custom">; label: string }> = [
 const loading = ref(true);
 const messages = ref<ExpediteMessage[]>([]);
 const selected = ref(new Set<string>());
+/** [P0-4] 真实通道无已读/发送写接口——隐藏"标记已读/全部已读"假操作 */
+const isRealMode = isLegacyRealEnabled();
+/** [红线] API 失败必须显式显示，禁止静默空列表 */
+const loadError = ref(false);
 
 const composerVisible = ref(false);
 const tone = ref<RemindTone>("gentle");
@@ -206,7 +221,15 @@ const drawerVisible = ref(false);
 const drawerId = ref<string | null>(null);
 const drawerRow = ref<OrderListItem | null>(null);
 
-const pendingCount = computed(() => messages.value.filter(m => !m.read).length);
+/**
+ * [P0-4] 待办数 = 真实通道（未接收 + 已接收，即"未处理完成流转"的全部）
+ * 或 Mock 通道（未读数，status 为空串回退 !read）。
+ */
+const pendingCount = computed(
+  () =>
+    messages.value.filter(m => (m.status ? m.status !== "已处理" : !m.read))
+      .length
+);
 
 /** 勾选顺序保持列表顺序 */
 const selectedRows = computed(() =>
@@ -215,10 +238,12 @@ const selectedRows = computed(() =>
 
 async function load() {
   loading.value = true;
+  loadError.value = false;
   try {
     messages.value = await fetchExpediteMessages();
   } catch {
     messages.value = [];
+    loadError.value = true;
   } finally {
     loading.value = false;
   }
@@ -435,6 +460,20 @@ onMounted(async () => {
   height: 6px;
   background: var(--app-danger);
   border-radius: 50%;
+}
+
+/* [P0-4] 真实通道状态 pill（已接收=待处理 / 已处理=完成流转） */
+.expedite__status {
+  padding: 1px 8px;
+  font-size: 11.5px;
+  color: var(--app-text-muted);
+  background: var(--app-surface-hover);
+  border-radius: var(--radius-md, 6px);
+}
+
+.expedite__row--unread .expedite__status {
+  color: var(--app-danger);
+  background: color-mix(in srgb, var(--app-danger) 10%, transparent);
 }
 
 .expedite__note {
