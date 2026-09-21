@@ -27,6 +27,9 @@ const scheduling = ref(false);
 const popoverVisible = ref(false);
 const customTime = ref<Date | null>(null);
 const switchValue = ref(false);
+/** 定时模式：默认每天（2026-09-21 用户指令） */
+const scheduleMode = ref<"daily" | "once">("daily");
+const dailyTime = ref<Date | null>(null);
 
 const degraded = computed(() => status.value?.degraded ?? null);
 const known = computed(
@@ -35,9 +38,12 @@ const known = computed(
 const schedule = computed(() => status.value?.schedule ?? null);
 const lastResult = computed(() => status.value?.lastResult ?? null);
 
-const scheduleText = computed(() =>
-  schedule.value ? dayjs(schedule.value.closeAt).format("MM-DD HH:mm") : ""
-);
+const scheduleText = computed(() => {
+  const s = schedule.value;
+  if (!s) return "";
+  if (s.mode === "daily") return `每天 ${s.time ?? "--:--"}（本地时间）`;
+  return s.closeAt ? dayjs(s.closeAt).format("MM-DD HH:mm") : "";
+});
 
 function presetAt(offsetMinutes?: number, fixedHour?: number): Date {
   if (fixedHour !== undefined) {
@@ -109,6 +115,35 @@ async function onSwitchChange(val: boolean) {
   }
 }
 
+/** 每天：本地 HH:mm + 时区偏移提交，由 cron 每日窗口判定执行 */
+async function doScheduleDaily(t: Date) {
+  const hh = String(t.getHours()).padStart(2, "0");
+  const mm = String(t.getMinutes()).padStart(2, "0");
+  scheduling.value = true;
+  try {
+    const res = await setAcceptanceSchedule({
+      mode: "daily",
+      time: `${hh}:${mm}`,
+      // getTimezoneOffset() 返回"UTC-本地"分钟（中国 -480），取反即本地偏移
+      tzOffsetMinutes: -new Date().getTimezoneOffset()
+    });
+    if (res.result && res.data?.schedule) {
+      status.value = {
+        ...(status.value as AcceptanceStatus),
+        schedule: res.data.schedule
+      };
+      ElMessage.success(`将每天 ${hh}:${mm} 自动关闭接单（只关不开）`);
+      popoverVisible.value = false;
+    } else {
+      ElMessage.error("定时设置失败");
+    }
+  } catch {
+    ElMessage.error("定时设置失败（网络异常）");
+  } finally {
+    scheduling.value = false;
+  }
+}
+
 async function doSchedule(at: Date) {
   if (at.getTime() <= Date.now() + 60_000) {
     ElMessage.warning("定时时间必须在未来 1 分钟以上");
@@ -116,7 +151,10 @@ async function doSchedule(at: Date) {
   }
   scheduling.value = true;
   try {
-    const res = await setAcceptanceSchedule(at.toISOString());
+    const res = await setAcceptanceSchedule({
+      mode: "once",
+      closeAt: at.toISOString()
+    });
     if (res.result && res.data?.schedule) {
       status.value = {
         ...(status.value as AcceptanceStatus),
@@ -176,8 +214,8 @@ onMounted(refresh);
       <div class="sched-panel">
         <p class="sched-title">定时关闭接单</p>
         <p class="sched-tip">
-          到时由系统自动关闭（只关不开）；旧系统 30 分钟无操作也会自动关闭。
-          仅选时间（24 小时制）：当天该时刻已过则排到明天同一时间。
+          到时由系统自动关闭（只关不开）。默认每天：每天所选本地时刻自动关闭一次，
+          直至取消；「仅一次」为单次任务，当天该时刻已过则排到明天。
         </p>
 
         <div v-if="schedule" class="sched-active">
@@ -211,41 +249,15 @@ onMounted(refresh);
           </template>
         </div>
 
-        <div class="presets">
-          <el-button
-            size="small"
-            :disabled="scheduling"
-            @click="doSchedule(presetAt(30))"
-          >
-            30 分钟后
-          </el-button>
-          <el-button
-            size="small"
-            :disabled="scheduling"
-            @click="doSchedule(presetAt(60))"
-          >
-            1 小时后
-          </el-button>
-          <el-button
-            size="small"
-            :disabled="scheduling"
-            @click="doSchedule(presetAt(120))"
-          >
-            2 小时后
-          </el-button>
-          <el-button
-            size="small"
-            :disabled="scheduling"
-            @click="doSchedule(presetAt(undefined, 21))"
-          >
-            今天 21:00
-          </el-button>
-        </div>
+        <el-radio-group v-model="scheduleMode" size="small" class="sched-mode">
+          <el-radio-button value="daily">每天</el-radio-button>
+          <el-radio-button value="once">仅一次</el-radio-button>
+        </el-radio-group>
 
-        <div class="custom-row">
+        <div v-if="scheduleMode === 'daily'" class="custom-row">
           <el-time-picker
-            v-model="customTime"
-            placeholder="选择时间（24 小时制）"
+            v-model="dailyTime"
+            placeholder="每天关闭时刻（24 小时制）"
             size="small"
             format="HH:mm"
             :disabled="scheduling"
@@ -253,13 +265,67 @@ onMounted(refresh);
           <el-button
             size="small"
             type="primary"
-            :disabled="!customTime"
+            :disabled="!dailyTime"
             :loading="scheduling"
-            @click="customTime && doSchedule(scheduleDateFromTime(customTime))"
+            @click="dailyTime && doScheduleDaily(dailyTime)"
           >
             设定
           </el-button>
         </div>
+
+        <template v-else>
+          <div class="presets">
+            <el-button
+              size="small"
+              :disabled="scheduling"
+              @click="doSchedule(presetAt(30))"
+            >
+              30 分钟后
+            </el-button>
+            <el-button
+              size="small"
+              :disabled="scheduling"
+              @click="doSchedule(presetAt(60))"
+            >
+              1 小时后
+            </el-button>
+            <el-button
+              size="small"
+              :disabled="scheduling"
+              @click="doSchedule(presetAt(120))"
+            >
+              2 小时后
+            </el-button>
+            <el-button
+              size="small"
+              :disabled="scheduling"
+              @click="doSchedule(presetAt(undefined, 21))"
+            >
+              今天 21:00
+            </el-button>
+          </div>
+
+          <div class="custom-row">
+            <el-time-picker
+              v-model="customTime"
+              placeholder="选择时间（24 小时制）"
+              size="small"
+              format="HH:mm"
+              :disabled="scheduling"
+            />
+            <el-button
+              size="small"
+              type="primary"
+              :disabled="!customTime"
+              :loading="scheduling"
+              @click="
+                customTime && doSchedule(scheduleDateFromTime(customTime))
+              "
+            >
+              设定
+            </el-button>
+          </div>
+        </template>
       </div>
     </el-popover>
 
@@ -365,6 +431,10 @@ onMounted(refresh);
     &.r-REJECTED {
       color: var(--app-danger, var(--el-color-danger));
     }
+  }
+
+  .sched-mode {
+    margin-bottom: 10px;
   }
 
   .presets {

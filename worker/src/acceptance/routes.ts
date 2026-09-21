@@ -27,7 +27,8 @@ import {
   putSchedule,
   deleteSchedule,
   getScheduleResult,
-  parseScheduleCloseAt
+  parseScheduleCloseAt,
+  parseDailySchedule
 } from "./store";
 
 export async function handleAcceptance(
@@ -97,17 +98,49 @@ export async function handleAcceptance(
       const forbidden = await assertWriteOrigin(request, ctx);
       if (forbidden) return forbidden;
 
-      let body: { closeAt?: unknown };
+      let body: {
+        mode?: unknown;
+        closeAt?: unknown;
+        time?: unknown;
+        tzOffsetMinutes?: unknown;
+      };
       try {
-        body = (await request.json()) as { closeAt?: unknown };
+        body = (await request.json()) as typeof body;
       } catch {
         return jsonError(400, "BAD_REQUEST", "请求体必须是 JSON");
       }
+
+      // mode=daily：每天本地 HH:mm 自动关闭（2026-09-21 用户指令默认每天）
+      if (body.mode === "daily") {
+        const daily = parseDailySchedule(body.time, body.tzOffsetMinutes);
+        if (!daily) {
+          return jsonError(
+            400,
+            "BAD_REQUEST",
+            "time 必须是 HH:mm（24 小时制），tzOffsetMinutes 必须是分钟整数"
+          );
+        }
+        const schedule = await putSchedule(env, {
+          userKey,
+          mode: "daily",
+          time: daily.time,
+          tzOffsetMinutes: daily.tzOffsetMinutes,
+          createdAt: new Date().toISOString()
+        });
+        return jsonOk({ result: true, data: { schedule } });
+      }
+
+      // mode=once（缺省，兼容旧行为）：一次性 closeAt
       const closeAt = parseScheduleCloseAt(body.closeAt);
       if (!closeAt) {
         return jsonError(400, "BAD_REQUEST", "closeAt 必须是未来 1 分钟 ~ 7 天内的 ISO 时间");
       }
-      const schedule = await putSchedule(env, userKey, closeAt);
+      const schedule = await putSchedule(env, {
+        userKey,
+        mode: "once",
+        closeAt: closeAt.toISOString(),
+        createdAt: new Date().toISOString()
+      });
       return jsonOk({ result: true, data: { schedule } });
     }
 

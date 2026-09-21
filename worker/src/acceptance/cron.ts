@@ -2,8 +2,12 @@
  * 接单定时关闭 —— Cron Trigger 执行器
  *
  * 触发：wrangler.jsonc triggers.crons = ["*\/5 * * * *"]（每 5 分钟）。
- * 行为：扫描 acc-sched:* 到期任务 → 关闭接单（updateWorkState.do workstate=2）→
- *       成功删任务；失败保留任务下次重试（7d TTL 兜底清理）。
+ * 行为：
+ * - once ：acc-sched:* 到期 → 关闭接单（updateWorkState.do workstate=2）→
+ *          成功删任务；失败保留任务下次重试（7d TTL 兜底清理）。
+ * - daily：每天用户本地 HH:mm 自动关闭（2026-09-21 用户指令"默认是每天"）——
+ *          用户本地时刻起 10 分钟窗口内执行一次，成功/业务拒绝后记 lastRunDate
+ *          防同日重复；Session 过期/瞬时错误窗口内下轮重试，跨日重置。
  *
  * 安全边界：
  * - 仅 LEGACY=ON 的环境执行（mock/preview 绝不触旧系统）；
@@ -18,9 +22,30 @@ import { setLegacyWorkState } from "../legacy/acceptance";
 import {
   listSchedules,
   deleteSchedule,
+  putSchedule,
   putScheduleResult,
+  localParts,
+  type ScheduleRecord,
   type ScheduleResultRecord
 } from "./store";
+
+/** daily 窗口宽度（分钟）：cron 每 5 分钟一轮，10 分钟保证至少命中一轮 */
+const DAILY_WINDOW_MINUTES = 10;
+
+/** 判断 daily 任务当前是否应执行 */
+export function isDailyDue(schedule: ScheduleRecord, nowMs: number): boolean {
+  if (!schedule.time || typeof schedule.tzOffsetMinutes !== "number") {
+    return false;
+  }
+  const local = localParts(nowMs, schedule.tzOffsetMinutes);
+  if (schedule.lastRunDate === local.date) return false; // 今天已执行过
+  const [hh, mm] = schedule.time.split(":").map(Number);
+  const schedMinutes = hh * 60 + mm;
+  return (
+    local.minutes >= schedMinutes &&
+    local.minutes < schedMinutes + DAILY_WINDOW_MINUTES
+  );
+}
 
 export async function handleScheduledAcceptance(env: Env): Promise<void> {
   if (!isLegacyEnabled(env)) return;
@@ -29,7 +54,14 @@ export async function handleScheduledAcceptance(env: Env): Promise<void> {
   const now = Date.now();
 
   for (const schedule of schedules) {
-    if (new Date(schedule.closeAt).getTime() > now) continue; // 未到期
+    const mode = schedule.mode ?? "once"; // 兼容旧记录（无 mode = once）
+    if (mode === "daily") {
+      if (!isDailyDue(schedule, now)) continue;
+    } else {
+      if (!schedule.closeAt || new Date(schedule.closeAt).getTime() > now) {
+        continue; // 未到期
+      }
+    }
 
     let result: ScheduleResultRecord;
     try {
@@ -48,11 +80,8 @@ export async function handleScheduledAcceptance(env: Env): Promise<void> {
       const legacyCookie = await getLegacyCookie(env, record);
       const r = await setLegacyWorkState(env, legacyCookie, false);
       if (r.result) {
-        await deleteSchedule(env, schedule.userKey);
         result = { status: "CLOSED", message: r.message, at: new Date().toISOString() };
       } else {
-        // 旧系统业务拒绝：重试无意义，删任务并记录
-        await deleteSchedule(env, schedule.userKey);
         result = { status: "REJECTED", message: r.message, at: new Date().toISOString() };
       }
     } catch (e) {
@@ -62,6 +91,19 @@ export async function handleScheduledAcceptance(env: Env): Promise<void> {
         message: e instanceof Error ? e.message : "unknown",
         at: new Date().toISOString()
       };
+    }
+
+    if (mode === "daily") {
+      // daily 是常驻任务：CLOSED/REJECTED 视为今天已处理（防重复），
+      // SESSION_EXPIRED/ERROR 保留待窗口内重试；TTL 每次写回刷新
+      if (result.status === "CLOSED" || result.status === "REJECTED") {
+        const tz = schedule.tzOffsetMinutes ?? 480;
+        schedule.lastRunDate = localParts(now, tz).date;
+      }
+      await putSchedule(env, schedule);
+    } else if (result.status === "CLOSED" || result.status === "REJECTED") {
+      // once：成功/业务拒绝后任务终结
+      await deleteSchedule(env, schedule.userKey);
     }
     await putScheduleResult(env, schedule.userKey, result);
   }

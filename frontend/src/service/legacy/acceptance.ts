@@ -16,7 +16,15 @@ import { http } from "@/utils/http";
 
 export interface AcceptanceSchedule {
   userKey: string;
-  closeAt: string;
+  /** once = 一次性（closeAt）；daily = 每天本地 time 自动关闭（默认） */
+  mode: "once" | "daily";
+  closeAt?: string;
+  /** daily：用户本地时刻 HH:mm */
+  time?: string;
+  /** daily：本地相对 UTC 的分钟偏移（中国 +480） */
+  tzOffsetMinutes?: number;
+  /** daily：最近一次执行所在本地日期 */
+  lastRunDate?: string;
   createdAt: string;
 }
 
@@ -32,6 +40,10 @@ export interface AcceptanceStatus {
   schedule: AcceptanceSchedule | null;
   lastResult: AcceptanceLastResult | null;
 }
+
+export type ScheduleInput =
+  | { mode: "once"; closeAt: string }
+  | { mode: "daily"; time: string; tzOffsetMinutes: number };
 
 /** 当前接单状态 + 定时任务 + 最近执行结果 */
 export async function fetchAcceptanceStatus(): Promise<{
@@ -52,13 +64,13 @@ export async function toggleAcceptance(open: boolean): Promise<{
   });
 }
 
-/** 设置定时关闭（closeAt 必须是未来 1 分钟 ~ 7 天内的 ISO 时间） */
-export async function setAcceptanceSchedule(closeAt: string): Promise<{
+/** 设置定时关闭：daily（默认，每天本地 time）或 once（未来 1 分钟 ~ 7 天） */
+export async function setAcceptanceSchedule(input: ScheduleInput): Promise<{
   result: boolean;
   data?: { schedule: AcceptanceSchedule };
 }> {
   return http.request("post", "/api/acceptance/schedule", {
-    data: { closeAt },
+    data: input,
     timeout: 15000
   });
 }
