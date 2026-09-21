@@ -17,6 +17,7 @@ import {
 } from "@/service/income/income-api";
 import { monthRange } from "@/service/income/time-utils";
 import { fetchOrders } from "@/service/order";
+import { fetchOrderHistory } from "@/service/order-history";
 import { fetchRules } from "@/service/pricing/pricing-api";
 import {
   getSyncStatus,
@@ -64,6 +65,12 @@ const homeProbe = ref<ProbeResult>(
   newProbe(
     "工作台域 HOME",
     "Worker /api/orders（getOrderList countInfo 六状态计数器 + begindate/enddate 服务端过滤）"
+  )
+);
+const orderHistoryProbe = ref<ProbeResult>(
+  newProbe(
+    "单号历史域 ORDER HISTORY",
+    "订单搜索（ordernum，分页拉全+精确匹配）→ N×详情 HTML 交稿区块解析（并发 2）→ editNeeds/query 最近一次改价；验证样本 TT_260908007929"
   )
 );
 
@@ -198,10 +205,80 @@ async function probeHome(): Promise<void> {
   }
 }
 
+/** [ORDER-HISTORY-AUDIT §二十九] 单号历史域真实探测（验收样本 = 用户自有测试单） */
+async function probeOrderHistory(): Promise<void> {
+  orderHistoryProbe.value = newProbe(
+    orderHistoryProbe.value.label,
+    orderHistoryProbe.value.source
+  );
+  const probe = orderHistoryProbe.value;
+  const t0 = performance.now();
+  try {
+    const r = await fetchOrderHistory("TT_260908007929");
+    const totalRows = r.deliveries.reduce((n, d) => n + d.rows.length, 0);
+    const okGroups = r.deliveries.filter(d => d.status === "ok").length;
+    const errGroups = r.deliveries.filter(d => d.status === "error").length;
+    const noBlock = r.deliveries.filter(d => d.status === "no-block").length;
+    const withTime = r.deliveries
+      .flatMap(d => d.rows)
+      .filter(row => row.isoTime || row.timeText).length;
+    probe.metrics = [
+      { key: "订单记录（分页拉全）", value: `${r.orders.length} 条` },
+      {
+        key: "精确匹配",
+        value: r.exactMatch ? "PASS（exact orderNo 命中）" : "仅包含匹配候选"
+      },
+      {
+        key: "需求（needsid）数",
+        value: `${r.deliveries.length} 个（无截断）`
+      },
+      {
+        key: "交稿记录装载",
+        value: `ok ${okGroups} / no-block ${noBlock} / error ${errGroups}（error≠空）`
+      },
+      { key: "交稿总次数", value: `${totalRows} 次` },
+      {
+        key: "交稿时间完整性",
+        value:
+          totalRows > 0 && withTime === totalRows
+            ? `PASS（${withTime}/${totalRows} 行有时间）`
+            : `${withTime}/${totalRows} 行有时间`
+      },
+      {
+        key: "文件三态映射",
+        value:
+          totalRows > 0
+            ? "PASS（final/source/proof 按 type=0/1/2）"
+            : "无交稿行"
+      },
+      {
+        key: "最近一次改价",
+        value: r.priceChange
+          ? `${r.priceChange.oldContent || "—"} → ${r.priceChange.newContent || "—"}（checkStatus=${r.priceChange.checkStatus ?? "—"}）`
+          : "无改价申请记录"
+      }
+    ];
+    probe.status = r.orders.length > 0 && errGroups === 0 ? "ok" : "fail";
+    if (probe.status === "fail") {
+      probe.error = `订单 ${r.orders.length} 条 / 读取失败需求 ${errGroups} 个（失败显式透出）`;
+    }
+  } catch (e) {
+    probe.status = "fail";
+    probe.error = e instanceof Error ? e.message : String(e);
+  } finally {
+    probe.latencyMs = Math.round(performance.now() - t0);
+  }
+}
+
 async function runAllProbes(): Promise<void> {
   running.value = true;
   try {
-    await Promise.all([probeIncome(), probePricing(), probeHome()]);
+    await Promise.all([
+      probeIncome(),
+      probePricing(),
+      probeHome(),
+      probeOrderHistory()
+    ]);
     probedAt.value = new Date().toLocaleString();
   } finally {
     running.value = false;
@@ -238,7 +315,7 @@ onMounted(runAllProbes);
     </ElCard>
 
     <ElCard
-      v-for="probe in [incomeProbe, pricingProbe, homeProbe]"
+      v-for="probe in [incomeProbe, pricingProbe, homeProbe, orderHistoryProbe]"
       :key="probe.label"
       shadow="never"
       class="rdp-section"
