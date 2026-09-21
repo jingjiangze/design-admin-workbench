@@ -7,6 +7,14 @@
  * 源文件 / 定稿凭证（downloadFile.do?recordid=&needsid=&type=0|1|2）/ 状态 /
  * 设计单号（TT_ 单号(版次)-时间戳-序列-P，逗号分隔多版）。
  * 多次交稿 = 多行，全部列出（重点需求：每次交稿时间完整呈现）。
+ *
+ * [审计加固 2026-09-21 ORDER-HISTORY-AUDIT]
+ * - 区块定位改 class-token 检测（class='draft-record'/'... draft-record ...'/单双引号均可）
+ * - 行切块正则化（引号/额外属性/空白容错）
+ * - 文件链接实体容错：& 与 &amp; 等价（&quot; 等实体在 URL 参数中无歧义影响 recordid/needsid/type）
+ * - 同类型多文件：真实样本无多文件证据 [NOT TESTED 多文件]，保持 string|null 取第一个，
+ *   结论记录于 docs/ORDER-HISTORY-AUDIT.md，取到反例再升级 string[]
+ * - 设计单号中英文逗号均支持
  * 纯函数、无 DOM 依赖（vitest 可测）。
  */
 
@@ -45,7 +53,7 @@ const MONTHS: Record<string, number> = {
   Dec: 11
 };
 
-/** "Sep 19, 2026 9:34:14 AM" → "2026-09-19 09:34:14"；失败返回 null */
+/** "Sep 19, 2026 9:34:14 AM" → "2026-09-19 09:34:14"；12AM→00 / 12PM→12；失败返回 null */
 export function normalizeEnUsTime(text: string): string | null {
   const m = text.match(
     /^([A-Za-z]{3}) (\d{1,2}), (\d{4}) (\d{1,2}):(\d{2}):(\d{2}) ([AP]M)$/i
@@ -63,8 +71,15 @@ export function normalizeEnUsTime(text: string): string | null {
 
 const EN_TIME = /([A-Za-z]{3} \d{1,2}, \d{4} \d{1,2}:\d{2}:\d{2} ?[AP]M)/;
 const ISO_TIME = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/;
+/** & 与 &amp; 等价（真实样本两种形态都出现过） */
 const FILE_LINK =
   /downloadFile\.do\?recordid=(\d+)&(?:amp;)?needsid=(\d+)&(?:amp;)?type=([012])/g;
+/** class token 检测：draft-record 可为唯一 class 或复合 class 之一，单双引号均可 */
+const BLOCK_START =
+  /class\s*=\s*(?:"[^"]*\bdraft-record\b[^"]*"|'[^']*\bdraft-record\b[^']*')/;
+/** 行切块：jiaogaojilu3 引号/额外属性容错 */
+const ROW_SPLIT =
+  /<div\s+class\s*=\s*(?:"jiaogaojilu3[^"]*"|'jiaogaojilu3[^']*')[^>]*>/gi;
 
 function stripTags(chunk: string): string[] {
   return chunk
@@ -84,13 +99,14 @@ export function parseDraftRecords(html: string): {
   found: boolean;
   rows: DraftRecordRow[];
 } {
-  const start = html.indexOf('class="draft-record"');
-  if (start === -1) return { found: false, rows: [] };
+  const m = BLOCK_START.exec(html);
+  if (!m) return { found: false, rows: [] };
+  const start = m.index;
   let end = html.indexOf("<!--交稿记录end", start);
   if (end === -1) end = Math.min(start + 80_000, html.length);
   const seg = html.slice(start, end);
 
-  const chunks = seg.split("<div class='jiaogaojilu3'>").slice(1);
+  const chunks = seg.split(ROW_SPLIT).slice(1);
   const rows: DraftRecordRow[] = [];
   for (const chunk of chunks) {
     const timeMatch = chunk.match(EN_TIME) ?? chunk.match(ISO_TIME);
@@ -104,9 +120,9 @@ export function parseDraftRecords(html: string): {
       source: null,
       proof: null
     };
-    for (const m of chunk.matchAll(FILE_LINK)) {
-      const kind = m[3] === "0" ? "final" : m[3] === "1" ? "source" : "proof";
-      if (files[kind] === null) files[kind] = m[1];
+    for (const fm of chunk.matchAll(FILE_LINK)) {
+      const kind = fm[3] === "0" ? "final" : fm[3] === "1" ? "source" : "proof";
+      if (files[kind] === null) files[kind] = fm[1];
     }
 
     const parts = stripTags(chunk);
@@ -124,13 +140,17 @@ export function parseDraftRecords(html: string): {
     const designNoPart = parts
       .filter(s => s.includes("TT_") || s.includes("设计单号"))
       .sort((a, b) => b.length - a.length)[0];
-    const designNos = designNoPart
-      ? designNoPart
-          .replace(/^设计单号[:：]?/, "")
-          .split(",")
-          .map(s => s.trim())
-          .filter(Boolean)
-      : [];
+    const designNoRaw = designNoPart ?? "";
+    // 时间等文本混入同一 text-run 时，从首个设计单号标记起截取，防误切
+    const ttIdx = designNoRaw.indexOf("TT_");
+    const designNoStr =
+      ttIdx > 0
+        ? designNoRaw.slice(ttIdx)
+        : designNoRaw.replace(/^设计单号[:：]?/, "");
+    const designNos = designNoStr
+      .split(/[,，]/)
+      .map(s => s.trim())
+      .filter(Boolean);
 
     rows.push({
       index: rows.length + 1,
