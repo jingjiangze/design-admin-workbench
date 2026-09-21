@@ -24,46 +24,6 @@
           {{ q }}
         </button>
       </div>
-
-      <!-- 直查结果：精确命中直接开详情；多需求/无精确时列候选 -->
-      <div v-if="searching" class="home__searching">
-        <AppSkeleton :rows="2" />
-      </div>
-      <p v-else-if="searchError" class="home__search-warn">
-        {{ searchError }}
-      </p>
-      <template v-else-if="searchDone">
-        <div v-if="candidates.length" class="home__candidates">
-          <p v-if="!exactHit" class="home__search-warn">
-            未找到与输入完全一致的订单号，以下为包含匹配候选
-          </p>
-          <p v-if="candidates.length > 1" class="home__candidates-tip">
-            该订单号关联 {{ candidates.length }} 个需求，点击查看对应详情
-          </p>
-          <button
-            v-for="o in candidates"
-            :key="o.orderId"
-            class="home__candidate"
-            type="button"
-            @click="openOrder(o)"
-          >
-            <span class="app-mono home__order-no">{{ o.orderNo }}</span>
-            <span class="app-mono home__cell-muted">{{ o.orderId }}</span>
-            <span class="home__cell-muted">{{
-              o.productName || o.taskType || "—"
-            }}</span>
-            <span><AppStatus :label="o.stateLabel" /></span>
-            <AppIcon
-              name="arrow-right"
-              :size="15"
-              class="home__attention-arrow"
-            />
-          </button>
-        </div>
-        <p v-else class="home__search-warn">
-          未查到订单号「{{ query.trim() }}」对应的订单
-        </p>
-      </template>
     </section>
 
     <!-- 极简横向统计（§十一：数字+小标题，无卡片边界） -->
@@ -189,11 +149,6 @@ import {
 } from "@/components/ui";
 import { fetchOrders, type OrderListItem } from "@/service/order";
 import { fetchExpediteMessages } from "@/service/expedite";
-import {
-  fetchAllOrdersByNo,
-  normalizeOrderNo,
-  pickExactOrders
-} from "@/service/order-history";
 import OrderDrawer from "@/components/OrderDrawer/index.vue";
 import {
   getIncomeDashboard,
@@ -278,14 +233,9 @@ function goOrders(keyword?: string) {
   );
 }
 
-// ── 单号直查（HOME-SEARCH 重构：首页即查询入口，命中直接开详情） ──
+// ── 单号直查（HOME-SEARCH：回车即跳全屏详情页，平铺订单/交稿/改价） ──
 
 const query = ref("");
-const searching = ref(false);
-const searchDone = ref(false);
-const searchError = ref("");
-const candidates = ref<OrderListItem[]>([]);
-const exactHit = ref(false);
 
 const drawerVisible = ref(false);
 const drawerId = ref<string | null>(null);
@@ -320,33 +270,14 @@ function searchRecent(no: string) {
   void searchOrder();
 }
 
-async function searchOrder() {
+function searchOrder() {
   const no = query.value.trim();
   if (!no) return;
-  searching.value = true;
-  searchDone.value = false;
-  searchError.value = "";
-  candidates.value = [];
-  try {
-    // 分页拉全（含匹配），再精确归属确认（§三/§四）
-    const all = await fetchAllOrdersByNo(no);
-    const normalized = normalizeOrderNo(no);
-    exactHit.value = all.some(
-      o => normalizeOrderNo(o.orderNo ?? "") === normalized
-    );
-    candidates.value = pickExactOrders(all, normalized);
-    pushRecent(no);
-    searchDone.value = true;
-    // 精确命中且唯一需求 → 一步直达详情（§六）
-    if (exactHit.value && candidates.value.length === 1) {
-      openOrder(candidates.value[0]);
-    }
-  } catch (e) {
-    searchError.value = e instanceof Error ? e.message : "查询失败（网络异常）";
-    searchDone.value = true;
-  } finally {
-    searching.value = false;
-  }
+  pushRecent(no);
+  router.push({
+    path: "/order-history/index",
+    query: { no }
+  });
 }
 
 function openOrder(o: OrderListItem) {
