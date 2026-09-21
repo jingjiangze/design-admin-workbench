@@ -33,3 +33,6 @@ npm-debug.log*
 
 # ===== WorkBuddy 本地状态 =====
 .workbuddy/
+
+# Wrangler dev secrets（任意目录）—— 绝对禁止提交
+.dev.vars

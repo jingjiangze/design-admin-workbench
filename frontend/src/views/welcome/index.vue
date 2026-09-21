@@ -8,7 +8,7 @@
         <AppSearch
           readonly
           size="lg"
-          placeholder="搜订单号、店铺、客户、品类…"
+          placeholder="搜订单号…"
           @click="openPalette"
         />
       </div>

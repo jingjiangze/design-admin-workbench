@@ -83,6 +83,10 @@ export async function legacyFetch(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "unknown";
+    const cause = (e as Error & { cause?: unknown })?.cause;
+    console.error(
+      `[legacy] fetch failed path=${path} err=${msg} cause=${cause instanceof Error ? `${cause.message} | ${cause.stack?.split("\n")[1] ?? ""}` : String(cause ?? "none")}`
+    );
     throw new LegacyError(502, "LEGACY_UNREACHABLE", `旧系统请求失败: ${msg}`);
   }
 }

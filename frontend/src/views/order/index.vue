@@ -24,7 +24,7 @@
       <AppSearch
         v-model="keywordInput"
         size="sm"
-        placeholder="搜订单号 / 店铺"
+        placeholder="搜订单号"
         class="orders__keyword"
         @enter="applyKeyword"
       />

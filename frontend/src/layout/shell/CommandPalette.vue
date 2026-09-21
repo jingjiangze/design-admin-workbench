@@ -14,7 +14,7 @@
               v-model="query"
               class="app-palette__input"
               type="text"
-              placeholder="搜订单号、店铺、客户、品类…"
+              placeholder="搜订单号 / 商品…"
               @keydown.down.prevent="move(1)"
               @keydown.up.prevent="move(-1)"
               @keydown.enter.prevent="chooseActive"

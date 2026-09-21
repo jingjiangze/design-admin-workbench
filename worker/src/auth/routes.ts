@@ -153,8 +153,9 @@ async function handleLogin(env: Env, request: Request): Promise<Response> {
       { result: true, data: { mode: "legacy", userKey: username, csrfToken } },
       { "Set-Cookie": sessionCookie(sessionId) }
     );
-  } catch {
-    return jsonError(502, "LEGACY_UNREACHABLE", "旧系统暂不可达");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "unknown";
+    return jsonError(502, "LEGACY_UNREACHABLE", `旧系统暂不可达: ${msg}`);
   }
 }
 

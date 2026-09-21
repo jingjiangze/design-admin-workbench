@@ -44,7 +44,9 @@ export async function fetchLegacyOrderList(
     limit: query.limit,
     state: query.state
   };
-  if (query.keyword) form.keyword = query.keyword;
+  // [VERIFIED 2026-09-21] 旧系统搜索参数 = ordernum（订单号包含匹配，空=全量）；
+  // form.keyword 会被旧系统静默忽略（返回全量不过滤）——禁止回退到 keyword 参数名。
+  if (query.keyword) form.ordernum = query.keyword;
 
   const res = await legacyFetch(env, "/chsjs/child/getOrderList.do", {
     legacyCookie,
