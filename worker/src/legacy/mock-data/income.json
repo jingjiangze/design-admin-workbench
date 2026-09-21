@@ -1,0 +1,36 @@
+{
+  "summary": {
+    "range": "month",
+    "systemIncome": 1368,
+    "orderCount": 287,
+    "avgPerOrder": 4.77
+  },
+  "trend": {
+    "dates": ["9.1", "9.2", "9.3", "9.4", "9.5"],
+    "systemIncome": [52, 0, 38, 105, 67],
+    "deduction": [0, 0, 0, 0, 0]
+  },
+  "orders": {
+    "list": [
+      {
+        "orderNo": "MOCK_26***9001",
+        "awardTime": "2026-09-20 16:31:15",
+        "issueTime": "2026-09-19 09:03:16",
+        "goodsName": "名片",
+        "legacyAmount": 10
+      },
+      {
+        "orderNo": "MOCK_26***9002",
+        "awardTime": "2026-09-19 11:02:44",
+        "issueTime": "2026-09-18 15:20:00",
+        "goodsName": "PVC名片",
+        "legacyAmount": 5
+      }
+    ],
+    "total": 287
+  },
+  "deductions": {
+    "list": [],
+    "total": 0
+  }
+}

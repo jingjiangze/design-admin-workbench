@@ -16,6 +16,17 @@ import { requireSession, jsonOk, jsonError, type AuthContext } from "./security/
 import { parseOrderListQuery, fetchLegacyOrderList, fetchMockOrderList } from "./legacy/order";
 import { parseDetailQuery, fetchLegacyOrderDetail, fetchMockOrderDetail } from "./legacy/detail";
 import { parseRemindQuery, fetchLegacyRemindList, fetchMockRemindList, normalizeRemindInbox } from "./legacy/remind";
+import {
+  parseIncomeQuery,
+  fetchLegacyIncomeSummary,
+  fetchLegacyIncomeTrend,
+  fetchLegacyIncomeOrders,
+  fetchLegacyIncomeDeductions,
+  fetchMockIncomeSummary,
+  fetchMockIncomeTrend,
+  fetchMockIncomeOrders,
+  fetchMockIncomeDeductions
+} from "./legacy/income";
 import { handleAcceptance } from "./acceptance/routes";
 import { handleScheduledAcceptance } from "./acceptance/cron";
 import { LegacyError } from "./legacy/client";
@@ -114,17 +125,40 @@ export default {
         return jsonOk(await fetchMockRemindList(query));
       }
 
-      // ── 收入统计（GET /api/income/*）——语义别名：数据同 /api/orders，
-      //    effectiveAmount 计算在前端 Domain Service（长文 §四十七 前端聚合），
-      //    Worker 不重复实现收入逻辑（Free CPU 保护）。
-      if (path === "/api/income/summary" || path === "/api/income/orders") {
+      // ── 收入域（GET /api/income/summary|trend|orders|deductions）──
+      // P1-04：真实六端点严格白名单（docs/INCOME_SOURCE_AUDIT.md / INCOME_CUTOVER_SPEC.md §4），
+      // 取代原 getOrderList 语义别名（已删除）。myIncome/undefinedCount 由前端规则引擎叠加填充
+      //（Worker 无规则知识，Free CPU 纪律）。无开放代理能力。
+      if (path.startsWith("/api/income/")) {
         if (request.method !== "GET") return jsonError(405, "METHOD_NOT_ALLOWED", "仅 GET");
-        const query = parseOrderListQuery(url);
+        const incomeQuery = parseIncomeQuery(url);
         if (isLegacyEnabled(env)) {
           const cookie = await legacyCookieOf(env, ctx);
-          return jsonOk(await fetchLegacyOrderList(env, cookie, query));
+          switch (path) {
+            case "/api/income/summary":
+              return jsonOk(await fetchLegacyIncomeSummary(env, cookie, incomeQuery));
+            case "/api/income/trend":
+              return jsonOk(await fetchLegacyIncomeTrend(env, cookie, incomeQuery));
+            case "/api/income/orders":
+              return jsonOk(await fetchLegacyIncomeOrders(env, cookie, incomeQuery));
+            case "/api/income/deductions":
+              return jsonOk(await fetchLegacyIncomeDeductions(env, cookie, incomeQuery));
+            default:
+              return jsonError(404, "NOT_FOUND", "收入端点不存在（summary/trend/orders/deductions）");
+          }
         }
-        return jsonOk(await fetchMockOrderList(env, query));
+        switch (path) {
+          case "/api/income/summary":
+            return jsonOk(await fetchMockIncomeSummary());
+          case "/api/income/trend":
+            return jsonOk(await fetchMockIncomeTrend());
+          case "/api/income/orders":
+            return jsonOk(await fetchMockIncomeOrders());
+          case "/api/income/deductions":
+            return jsonOk(await fetchMockIncomeDeductions());
+          default:
+            return jsonError(404, "NOT_FOUND", "收入端点不存在（summary/trend/orders/deductions）");
+        }
       }
 
       // ── 接单开关 + 定时关闭（GET status / POST toggle / schedule CRUD）──
