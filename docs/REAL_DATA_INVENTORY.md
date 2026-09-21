@@ -12,7 +12,7 @@
 
 | # | 页面/入口 | 数据 | 当前来源 | 目标来源 | 状态 | 任务卡 |
 |---|---|---|---|---|---|---|
-| 1 | 订单页 /order | 列表+total | Real: `/api/orders`（pageInfo.total） | 不变（#57 修 total=null） | REAL-READY* | P0-2 #57 |
+| 1 | 订单页 /order | 列表+total | Real: `/api/orders`（pageInfo.total） | 不变 | **REAL-READY（P0-2 取证闭环 [VERIFIED]）** | P0-2 #57 ✅ |
 | 2 | 订单页/Drawer | 详情 | Real: `/api/orders/detail` | 不变 | REAL-READY | — |
 | 3 | 催稿中心 /expedite | 消息列表 | **Mock 恒走**（`expedite-messages.json`） | Worker `/api/reminders`（getReminderMessageNew.do，已 VERIFIED total=164） | **MOCK-ONLY（P0 缺陷）** | P0-4 #59 |
 | 4 | 催稿中心 | 已读标记 | Mock 内存态 | 待定（旧系统已读 API 是否授权待确认） | MOCK-ONLY | P0-4 #59 |
@@ -27,7 +27,7 @@
 | 13 | 登录 | Turnstile 配置 | `/api/config`（失败不阻塞，Mock 环境无 key） | 不变 | OK | — |
 | 14 | 接单开关 | 状态/切换/定时 | Real `/api/acceptance`（CF-REAL 已上线） | 不变 | REAL-READY | — |
 
-`*` REAL-READY*：链路真实但 `pageInfo.total` 在旧系统响应中为 null → 前端拿到 null（CF-REAL-03 staging 实测 rowCount=5 / total=null），P0-2 修复。
+`*` 已消解：P0-2 直连取证（.tmp-evidence/orders-total-forensics.mjs，5 组矩阵）+ staging 复测证明 **total 从未丢失**——`data.pageInfo.total` 真实存在（全量 549，翻页/变页 4 组一致，state 过滤联动正确）；CF-REAL-03 记录的 total=null 是 gate 脚本误读 `countInfo.total`（该字段不存在，countInfo 实为 6 状态计数器）所致。Worker 透传与前端 order.ts 读数路径均正确，零代码改动修复。
 
 ---
 
@@ -138,3 +138,14 @@ P1        Real Mode Lock            → VITE_DATA_MODE=mock 显式锁定 + real 
 - **两域"有真不用"**：催稿（Worker 真实通道已 VERIFIED 而前端恒 Mock）是 P0-4 唯一大切换点；商品目录属 P1。
 - **两处红线踩线**：首页 ¥0 假数据 + pageSize=100 前端算统计（§三-2），随 P0-5/P1 落实修复，本审计先行登记。
 - **一处隐藏缺陷**：pricingRules `setUserIdentity` 零调用 → 隔离失效（§三-4），P1 Pricing→D1 必修。
+
+## 八、P0-2 补充取证（2026-09-21，orders.total 结案）
+
+- **取证方法**：直连 `getOrderList.do` 五组矩阵（全量 p1/p2、state=1、limit=5、limit=200）+ staging 四步门复测。
+- **[VERIFIED] 响应结构**：`{result, message, flag, data:{countInfo, pageInfo}}`。
+  - `pageInfo` = PageHelper 标准全字段（total/pages/startRow/endRow/prePage/nextPage/isFirstPage/isLastPage/hasNextPage/navigatepageNums…）；
+  - **total 全组稳定 = 549**（p1=549 / p2=549 / limit5=549 / limit200=549），state=1 时 total=0 正确联动（当前待接单为 0）；
+  - `countInfo` = `{didnotpass:0, wait:0, nofeedback:0, badordercount:0, aftersale:0, flowmarker:65}` —— **状态计数器组，无 total 字段**。
+- **[VERIFIED] staging 实测**：`/api/orders?page=1&limit=5` → 200 / total=549 / rowCount=5 / fieldCount=38 / result=true。
+- **根因结案**：CF-REAL-03 记录的 `total=null` 是 gate 取证脚本误读 `data.countInfo.total`（不存在 → `?? null`）；Worker `jsonOk` 纯透传、前端 `order.ts` 读 `res.data.pageInfo.total` 路径正确——**零业务代码改动，仅修取证工具字段路径**。
+- **P1 红利**：`countInfo` 六计数器是首页统计卡的真实数据源候选（无需前端拉单计算）；`flowmarker=65` 与 total=549 的语义差待 P0-5/P1 收入取证时一并厘清。
