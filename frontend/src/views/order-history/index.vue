@@ -6,11 +6,12 @@
  * 改价记录（旧系统 editNeeds/query，返回该单号最新一条改价申请及审核信息）。
  * 诚实性：区块缺失/接口失败显式透出，禁静默当空。
  */
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { ElInput } from "element-plus";
 import { AppButton, AppEmpty, AppIcon } from "@/components/ui";
 import {
   fetchOrderHistory,
+  retryFailedDeliveries,
   type OrderHistoryResult
 } from "@/service/order-history";
 
@@ -18,6 +19,7 @@ defineOptions({ name: "OrderHistoryQuery" });
 
 const keyword = ref("");
 const loading = ref(false);
+const retrying = ref(false);
 const loadError = ref<string | null>(null);
 const result = ref<OrderHistoryResult | null>(null);
 const searched = ref("");
@@ -25,6 +27,17 @@ const searched = ref("");
 function fmtAmount(n: number | null): string {
   return n === null ? "—" : `¥${n}`;
 }
+
+/** 失败项数量（重试按钮仅在 >0 时出现，§十九） */
+const failedCount = computed(
+  () => result.value?.deliveries.filter(d => d.status === "error").length ?? 0
+);
+const okCount = computed(
+  () => result.value?.deliveries.filter(d => d.status !== "error").length ?? 0
+);
+const totalSubmissions = computed(
+  () => result.value?.deliveries.reduce((n, d) => n + d.rows.length, 0) ?? 0
+);
 
 async function search() {
   const no = keyword.value.trim();
@@ -39,6 +52,17 @@ async function search() {
     loadError.value = e instanceof Error ? e.message : "查询失败（网络异常）";
   } finally {
     loading.value = false;
+  }
+}
+
+/** 仅重试失败项（不全部重新请求） */
+async function retryFailed() {
+  if (!result.value) return;
+  retrying.value = true;
+  try {
+    result.value = await retryFailedDeliveries(result.value);
+  } finally {
+    retrying.value = false;
   }
 }
 
@@ -80,6 +104,32 @@ function priceStatusText(status: number | undefined): string {
     </AppEmpty>
 
     <template v-else-if="result">
+      <!-- 摘要行 + 精确匹配标注（§十四） -->
+      <div class="ohq__summary">
+        <span class="app-mono ohq__summary-no">{{ result.orderNo }}</span>
+        <span class="ohq__muted app-num">
+          {{ result.orders.length }} 条需求 · {{ totalSubmissions }} 次交稿
+        </span>
+        <span
+          v-if="!result.exactMatch && result.orders.length"
+          class="ohq__warn"
+        >
+          未找到与输入完全一致的订单号，以下为包含匹配候选
+        </span>
+        <span
+          v-if="failedCount"
+          class="ohq__warn ohq__warn--action"
+          role="button"
+          @click="retryFailed"
+        >
+          {{
+            retrying
+              ? "重试中…"
+              : `${okCount}/${result.deliveries.length} 条需求历史已加载，${failedCount} 条读取失败——点击重试失败项`
+          }}
+        </span>
+      </div>
+
       <!-- ① 订单记录 -->
       <section class="ohq__section">
         <h2 class="ohq__section-title">
@@ -127,18 +177,20 @@ function priceStatusText(status: number | undefined): string {
             <div class="ohq__delivery-head">
               <span class="app-mono">{{ d.orderNo }}</span>
               <span class="ohq__muted">需求ID {{ d.needsid }}</span>
-              <span class="app-num ohq__count">
-                {{
-                  d.blockFound ? `共 ${d.rows.length} 次交稿` : "记录区块缺失"
+              <span v-if="d.status === 'ok'" class="app-num ohq__count">
+                共 {{ d.rows.length }} 次交稿
+              </span>
+              <span v-else-if="d.status === 'no-block'" class="ohq__warn">
+                未找到交稿记录区块——可能尚未交稿，或旧系统模板变更（需人工核查）
+              </span>
+              <span v-else class="ohq__warn">
+                交稿记录读取失败{{
+                  d.errorMessage ? `：${d.errorMessage}` : ""
                 }}
               </span>
             </div>
-            <AppEmpty
-              v-if="!d.blockFound"
-              icon="close"
-              text="详情页未返回交稿记录区块——可能从未交稿，或旧系统模板变更（需人工核查）"
-            />
-            <div v-else-if="d.rows.length" class="ohq__table">
+            <!-- error ≠ 无交稿（§五红线）：失败显式呈现，禁伪装空 -->
+            <div v-if="d.status === 'ok' && d.rows.length" class="ohq__table">
               <div class="ohq__tr ohq__tr--head">
                 <span>序号</span><span>交稿时间</span><span>状态</span>
                 <span>定稿文件</span><span>源文件</span><span>定稿凭证</span>
@@ -159,7 +211,7 @@ function priceStatusText(status: number | undefined): string {
               </div>
             </div>
             <AppEmpty
-              v-else
+              v-else-if="d.status === 'ok'"
               icon="check"
               text="该需求尚未交稿（区块存在但无记录行）"
             />
@@ -167,9 +219,9 @@ function priceStatusText(status: number | undefined): string {
         </template>
       </section>
 
-      <!-- ③ 改价申请 / 改价记录 -->
+      <!-- ③ 最近一次改价（旧系统 editNeeds/query 语义：仅最新一条，非全量历史） -->
       <section class="ohq__section">
-        <h2 class="ohq__section-title">改价申请 / 改价记录</h2>
+        <h2 class="ohq__section-title">最近一次改价</h2>
         <AppEmpty
           v-if="!result.priceChange"
           icon="check"
@@ -287,6 +339,29 @@ function priceStatusText(status: number | undefined): string {
 .ohq__muted {
   font-size: 12.5px;
   color: var(--app-text-muted);
+}
+
+.ohq__summary {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.ohq__summary-no {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-text);
+}
+
+.ohq__warn {
+  font-size: 12.5px;
+  color: var(--app-warning, #b7791f);
+}
+
+.ohq__warn--action {
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .ohq__table {
