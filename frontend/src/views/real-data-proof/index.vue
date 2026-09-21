@@ -13,7 +13,7 @@ import { ElButton, ElCard, ElTag } from "element-plus";
 import { isLegacyRealEnabled } from "@/service/gateway";
 import {
   fetchIncomeSummary,
-  fetchIncomeMonthRecords
+  fetchIncomeRecordsSample
 } from "@/service/income/income-api";
 import { monthRange } from "@/service/income/time-utils";
 import { fetchOrders } from "@/service/order";
@@ -51,7 +51,7 @@ function newProbe(label: string, source: string): ProbeResult {
 const incomeProbe = ref<ProbeResult>(
   newProbe(
     "收入域 INCOME",
-    "Worker /api/income/summary + month-records（旧系统 getIncomeList 中标记录，awardTime 中标时间锚点）"
+    "Worker /api/income/summary + orders 抽样（旧系统 getIncomeList 中标记录，awardTime 中标时间锚点）"
   )
 );
 const pricingProbe = ref<ProbeResult>(
@@ -70,15 +70,32 @@ const homeProbe = ref<ProbeResult>(
 const modeLabel = computed(() => (isLegacyRealEnabled() ? "REAL" : "MOCK"));
 
 async function probeIncome(): Promise<void> {
-  const probe = newProbe(incomeProbe.value.label, incomeProbe.value.source);
-  incomeProbe.value = probe;
+  incomeProbe.value = newProbe(
+    incomeProbe.value.label,
+    incomeProbe.value.source
+  );
+  const probe = incomeProbe.value; // .value 取出的是响应式代理，后续变更才可触发渲染
   const t0 = performance.now();
   try {
     const { monthKey } = monthRange();
-    const [summary, records] = await Promise.all([
-      fetchIncomeSummary({ range: "month", month: monthKey }),
-      fetchIncomeMonthRecords(monthKey)
-    ]);
+    // 旧系统限流抖动（Wave E 实测 summary 单次可达 8s+，突发下可超 15s）：
+    // 探测带一次 4s 退避重试，仍失败才如实透出
+    let summary: Awaited<ReturnType<typeof fetchIncomeSummary>> | null = null;
+    let sample: Awaited<ReturnType<typeof fetchIncomeRecordsSample>> | null =
+      null;
+    let lastErr: unknown = null;
+    for (let i = 0; i < 2 && !summary; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 4000));
+      try {
+        [summary, sample] = await Promise.all([
+          fetchIncomeSummary({ range: "month", month: monthKey }),
+          fetchIncomeRecordsSample(monthKey, 20)
+        ]);
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!summary || !sample) throw lastErr;
     probe.metrics = [
       { key: "账期", value: monthKey },
       {
@@ -94,12 +111,12 @@ async function probeIncome(): Promise<void> {
         value: summary.avgPerOrder === null ? "—" : `¥${summary.avgPerOrder}`
       },
       {
-        key: "月明细记录数",
-        value: `${records.list.length} / total ${records.total}`
+        key: "月明细 total（真实）",
+        value: String(sample.total)
       },
       {
-        key: "明细截断",
-        value: records.truncated ? "是（超 10 页上限）" : "否"
+        key: "明细抽样",
+        value: `首页 ${sample.list.length} 条（轻量探测，非全量）`
       }
     ];
     probe.status = "ok";
@@ -112,8 +129,11 @@ async function probeIncome(): Promise<void> {
 }
 
 async function probePricing(): Promise<void> {
-  const probe = newProbe(pricingProbe.value.label, pricingProbe.value.source);
-  pricingProbe.value = probe;
+  pricingProbe.value = newProbe(
+    pricingProbe.value.label,
+    pricingProbe.value.source
+  );
+  const probe = pricingProbe.value;
   const t0 = performance.now();
   try {
     const serverRules = await fetchRules();
@@ -143,8 +163,8 @@ function todayLocal(): string {
 }
 
 async function probeHome(): Promise<void> {
-  const probe = newProbe(homeProbe.value.label, homeProbe.value.source);
-  homeProbe.value = probe;
+  homeProbe.value = newProbe(homeProbe.value.label, homeProbe.value.source);
+  const probe = homeProbe.value;
   const t0 = performance.now();
   try {
     const [all, today] = await Promise.all([

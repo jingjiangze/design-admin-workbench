@@ -71,7 +71,8 @@ export async function fetchOrders(params: {
   }
   return {
     total: res.data.pageInfo.total,
-    list: res.data.pageInfo.list.map(mapLegacyOrderListItem),
+    // PageHelper 空结果（total=0）不返回 list 字段——容忍缺省（2026-09-21 E2E 实测）
+    list: res.data.pageInfo.list?.map(mapLegacyOrderListItem) ?? [],
     countInfo: res.data.countInfo
   };
 }

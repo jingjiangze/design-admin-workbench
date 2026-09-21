@@ -56,12 +56,16 @@ export async function fetchIncomeSummary(params: {
   if (!isLegacyRealEnabled()) {
     return mockData().summary as IncomeSummaryData;
   }
-  const body = await http.request<{ result: boolean; data: IncomeSummaryData }>(
+  // ⚠️ Worker jsonOk 直出数据本体（无 {result,data} 信封）——2026-09-21 UI E2E 实测修复
+  const body = await http.request<IncomeSummaryData>(
     "get",
     `/api/income/summary?${qs.stringify({ range: params.range, month: params.month })}`,
     { timeout: 15000 }
   );
-  return body.data;
+  if (!body || typeof body !== "object" || !("systemIncome" in body)) {
+    throw new Error("收入 summary 响应形态异常（缺少 systemIncome 字段）");
+  }
+  return body;
 }
 
 export async function fetchIncomeTrend(
@@ -70,12 +74,15 @@ export async function fetchIncomeTrend(
   if (!isLegacyRealEnabled()) {
     return mockData().trend as IncomeTrendData;
   }
-  const body = await http.request<{ result: boolean; data: IncomeTrendData }>(
+  const body = await http.request<IncomeTrendData>(
     "get",
     `/api/income/trend?${qs.stringify({ month })}`,
     { timeout: 15000 }
   );
-  return body.data;
+  if (!body || !Array.isArray(body.dates)) {
+    throw new Error("收入趋势响应形态异常（缺少 dates 字段）");
+  }
+  return body;
 }
 
 /** 月明细全量拉取（分页 limit=100；上限 10 页保护——SPEC §5，超限抛错而非静默截断）
@@ -89,17 +96,23 @@ export async function fetchIncomeMonthRecords(
     const m = mockData().orders as IncomeOrdersData;
     return { list: m.list, total: m.total, truncated: false };
   }
-  const fetchPage = (page: number) =>
-    http.request<{ result: boolean; data: IncomeOrdersData }>(
+  const fetchPage = async (page: number) => {
+    // Worker jsonOk 直出 {list,total}（无信封）
+    const body = await http.request<IncomeOrdersData>(
       "get",
       `/api/income/orders?${qs.stringify({ month, page, limit: 100 })}`,
       { timeout: 15000 }
     );
+    if (!body || !Array.isArray(body.list)) {
+      throw new Error(`收入明细第 ${page} 页响应形态异常（缺少 list 数组）`);
+    }
+    return body;
+  };
 
   const first = await fetchPage(1);
-  const total = first.data.total;
-  const all: IncomeRecord[] = [...(first.data.list ?? [])];
-  if (all.length >= total || (first.data.list ?? []).length === 0) {
+  const total = first.total;
+  const all: IncomeRecord[] = [...(first.list ?? [])];
+  if (all.length >= total || (first.list ?? []).length === 0) {
     return { list: all, total, truncated: all.length < total };
   }
 
@@ -107,8 +120,29 @@ export async function fetchIncomeMonthRecords(
   const rest = await Promise.all(
     Array.from({ length: totalPages - 1 }, (_, i) => fetchPage(i + 2))
   );
-  for (const body of rest) all.push(...(body.data.list ?? []));
+  for (const body of rest) all.push(...(body.list ?? []));
   return { list: all, total, truncated: all.length < total };
+}
+
+/** 明细抽样（单页轻量探测，real-data-proof 诊断页专用——
+ *  避免全量月明细多页请求与首页预取争抢 Worker→旧系统限流队列） */
+export async function fetchIncomeRecordsSample(
+  month: string,
+  limit = 20
+): Promise<{ list: IncomeRecord[]; total: number }> {
+  if (!isLegacyRealEnabled()) {
+    const m = mockData().orders as IncomeOrdersData;
+    return { list: m.list.slice(0, limit), total: m.total };
+  }
+  const body = await http.request<IncomeOrdersData>(
+    "get",
+    `/api/income/orders?${qs.stringify({ month, page: 1, limit })}`,
+    { timeout: 20000 }
+  );
+  if (!body || !Array.isArray(body.list)) {
+    throw new Error("收入明细抽样响应形态异常（缺少 list 数组）");
+  }
+  return { list: body.list, total: body.total };
 }
 
 export async function fetchIncomeDeductions(params: {
@@ -119,10 +153,7 @@ export async function fetchIncomeDeductions(params: {
   if (!isLegacyRealEnabled()) {
     return mockData().deductions as IncomeDeductionsData;
   }
-  const body = await http.request<{
-    result: boolean;
-    data: IncomeDeductionsData;
-  }>(
+  const body = await http.request<IncomeDeductionsData>(
     "get",
     `/api/income/deductions?${qs.stringify({
       month: params.month,
@@ -131,5 +162,8 @@ export async function fetchIncomeDeductions(params: {
     })}`,
     { timeout: 15000 }
   );
-  return body.data;
+  if (!body || !Array.isArray(body.list)) {
+    throw new Error("扣款明细响应形态异常（缺少 list 数组）");
+  }
+  return body;
 }
