@@ -153,7 +153,7 @@
  * 规则读写一律经 pricingRuleStore（页面禁止直接 localStorage）
  * 未定义 ≠ ¥0（未定义灰色警示；¥0 正常展示）
  */
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { ElInputNumber, ElMessage, ElMessageBox } from "element-plus";
 import {
@@ -169,6 +169,7 @@ import {
   searchGoods,
   type GoodsItem
 } from "@/service/category";
+import type { PricingRule } from "@/service/pricing/pricing-rule-types";
 import {
   getRule,
   setRule,
@@ -176,9 +177,9 @@ import {
   listRules,
   buildImportPreview,
   commitImport,
-  exportRules
+  exportRules,
+  onSyncError
 } from "@/service/pricing/pricing-rule-store";
-import type { PricingRule } from "@/service/pricing/pricing-rule-types";
 
 defineOptions({ name: "CategoryList" });
 
@@ -187,6 +188,16 @@ const route = useRoute();
 const loading = ref(true);
 const catalog = ref<GoodsItem[]>([]);
 const query = ref("");
+
+/** P1-05：金额规则服务端同步失败透出（写意图保留，恢复后自动重试） */
+onMounted(async () => {
+  const offSyncError = onSyncError(message => {
+    ElMessage.error(
+      `金额规则云端同步失败：${message}（本地已保存，稍后自动重试）`
+    );
+  });
+  onBeforeUnmount(offSyncError);
+});
 
 /** Palette 跳转带入搜索词 */
 onMounted(async () => {

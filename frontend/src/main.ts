@@ -8,6 +8,9 @@ import { createApp, type Directive } from "vue";
 import { useElementPlus } from "@/plugins/elementPlus";
 import { injectResponsiveStorage } from "@/utils/responsive";
 import { useTheme } from "@/hooks/useTheme";
+import { storageLocal } from "@pureadmin/utils";
+import type { DataInfo } from "./utils/auth";
+import { initUserIdentity } from "./service/user-identity";
 
 // 主题启动即应用：不依赖任何页面 chunk 的懒加载时机
 // （index.html 防闪烁脚本已先行处理首帧，这里补注册 system 监听与单例状态）
@@ -63,6 +66,10 @@ app.use(VueTippy);
 
 getPlatformConfig(app).then(async config => {
   setupStore(app);
+  // P1-05：会话恢复（刷新场景）——持久化的 username 即 userKey，
+  // 挂 pricing 规则 / goodsId 缓存身份（登录场景由 user store 钩子处理）
+  const persistedUser = storageLocal().getItem<DataInfo<number>>("user-info");
+  if (persistedUser?.username) initUserIdentity(persistedUser.username);
   app.use(router);
   await router.isReady();
   injectResponsiveStorage(app, config);

@@ -15,6 +15,7 @@ import {
 } from "@/api/user";
 import { useMultiTagsStoreHook } from "./multiTags";
 import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
+import { initUserIdentity, resetUserIdentity } from "@/service/user-identity";
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
@@ -68,7 +69,12 @@ export const useUserStore = defineStore("pure-user", {
       return new Promise<UserResult>((resolve, reject) => {
         getLogin(data)
           .then(data => {
-            if (data?.success) setToken(data.data);
+            if (data?.success) {
+              setToken(data.data);
+              // P1-05：登录成功挂用户身份（pricing 规则 + goodsId 缓存 scope，
+              // username = Worker 登录响应的 userKey）
+              initUserIdentity(data.data.username);
+            }
             resolve(data);
           })
           .catch(error => {
@@ -82,6 +88,8 @@ export const useUserStore = defineStore("pure-user", {
       this.roles = [];
       this.permissions = [];
       removeToken();
+      // P1-05：身份归属回落 local（防登出窗口内规则读写串账号）
+      resetUserIdentity();
       useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
       resetRouter();
       router.push("/login");
