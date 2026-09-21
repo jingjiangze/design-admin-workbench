@@ -49,6 +49,23 @@ function presetAt(offsetMinutes?: number, fixedHour?: number): Date {
     .toDate();
 }
 
+/**
+ * 24 小时制时间（el-time-picker 产出 = 今天 + 所选时刻）→ 实际执行时间：
+ * 当天该时刻已过（含未来 1 分钟内）则自动排到明天同一时间。
+ */
+function scheduleDateFromTime(t: Date): Date {
+  const candidate = dayjs()
+    .hour(t.getHours())
+    .minute(t.getMinutes())
+    .second(0)
+    .millisecond(0);
+  return (
+    candidate.isBefore(dayjs().add(60, "second"))
+      ? candidate.add(1, "day")
+      : candidate
+  ).toDate();
+}
+
 async function refresh() {
   loading.value = true;
   try {
@@ -105,7 +122,7 @@ async function doSchedule(at: Date) {
         ...(status.value as AcceptanceStatus),
         schedule: res.data.schedule
       };
-      ElMessage.success(`将在 ${dayjs(at).format("HH:mm")} 自动关闭接单`);
+      ElMessage.success(`将在 ${dayjs(at).format("MM-DD HH:mm")} 自动关闭接单`);
       popoverVisible.value = false;
     } else {
       ElMessage.error("定时设置失败");
@@ -160,6 +177,7 @@ onMounted(refresh);
         <p class="sched-title">定时关闭接单</p>
         <p class="sched-tip">
           到时由系统自动关闭（只关不开）；旧系统 30 分钟无操作也会自动关闭。
+          仅选时间（24 小时制）：当天该时刻已过则排到明天同一时间。
         </p>
 
         <div v-if="schedule" class="sched-active">
@@ -225,21 +243,19 @@ onMounted(refresh);
         </div>
 
         <div class="custom-row">
-          <el-date-picker
+          <el-time-picker
             v-model="customTime"
-            type="datetime"
-            placeholder="自定义时间"
+            placeholder="选择时间（24 小时制）"
             size="small"
-            format="YYYY-MM-DD HH:mm"
+            format="HH:mm"
             :disabled="scheduling"
-            :disabled-date="(d: Date) => d.getTime() < Date.now() - 86400_000"
           />
           <el-button
             size="small"
             type="primary"
             :disabled="!customTime"
             :loading="scheduling"
-            @click="customTime && doSchedule(customTime)"
+            @click="customTime && doSchedule(scheduleDateFromTime(customTime))"
           >
             设定
           </el-button>
