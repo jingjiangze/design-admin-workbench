@@ -12,6 +12,18 @@
           @enter="searchOrder"
         />
       </div>
+      <div class="home__search-actions">
+        <AppButton
+          variant="solid"
+          size="md"
+          :disabled="!query.trim()"
+          @click="searchOrder"
+        >
+          <AppIcon name="search" :size="15" />
+          查询
+        </AppButton>
+        <span class="home__search-hint">回车也可 · 查订单 / 交稿 / 改价</span>
+      </div>
       <div v-if="recentQueries.length" class="home__recent">
         <span class="home__recent-label">最近查询</span>
         <button
@@ -140,6 +152,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
+  AppButton,
   AppIcon,
   AppMetric,
   AppSearch,
@@ -439,6 +452,18 @@ function formatCny(n: number): string {
 
 .home__search :deep(.app-search__input--lg) {
   cursor: text;
+}
+
+.home__search-actions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: var(--space-3);
+}
+
+.home__search-hint {
+  font-size: 12px;
+  color: var(--app-text-faint);
 }
 
 /* ── 最近查询 / 直查结果（HOME-SEARCH） ── */

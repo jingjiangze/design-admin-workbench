@@ -256,7 +256,11 @@ async function runSearch(q: string) {
 function goOrder(orderNo: string) {
   pushRecent(orderNo);
   close();
-  router.push({ path: "/order/index", query: { keyword: orderNo } });
+  // 订单号命中 → 直接跳全屏平铺详情页（订单/交稿/改价），与首页直查一致
+  router.push({
+    path: "/order-history/index",
+    query: { no: orderNo }
+  });
 }
 function goCategory(name: string) {
   pushRecent(name);
