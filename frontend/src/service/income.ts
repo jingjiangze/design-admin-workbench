@@ -1,99 +1,125 @@
 /**
- * 收入领域服务 —— 视图层获取收入数据的唯一入口
- * （docs/INCOME_CALCULATION_SPEC.md §7）
+ * 收入领域服务 —— 视图层获取收入数据的唯一入口（P1-07 真实源版）
  *
- * 职责：拉取订单范围 + 金额规则 → 组装汇总/品类分布/未定义订单。
- * 金额计算一律委托 income-calculation 纯函数层；规则读写委托 pricingRuleStore。
+ * 数据源 = /api/income/*（getIncomeList 中标记录，awardTime 中标时间锚点）。
+ * 口径冻结：docs/INCOME_CUTOVER_SPEC.md；
+ * 红线：禁拉订单列表自算收入（fetchIncomeScope 已退役）；禁 null→0；
+ *       API 失败 throw → UI 显式"加载失败"（禁 mock fallback）。
+ * 今日/本周 = 当月明细的前端时间过滤（SPEC §5，UI 须标注数据来源语义）。
  */
-import { fetchOrders } from "./order";
 import { listRules } from "./pricing/pricing-rule-store";
 import type { PricingRule } from "./pricing/pricing-rule-types";
 import {
-  enrichScope,
-  DEFAULT_RANGE_PRESETS
-} from "./income/income-service-core";
+  fetchIncomeSummary,
+  fetchIncomeMonthRecords,
+  type IncomeSummaryData
+} from "./income/income-api";
 import {
-  getIncomeOrders,
-  getUndefinedAmountOrders
-} from "./income/income-calculation";
-import type {
-  IncomeSummary,
-  CategoryIncome
-} from "./income/income-calculation";
-import type { IncomePolicy } from "./income/income-policy";
-import { DEFAULT_INCOME_POLICY } from "./income/income-policy";
-import type { OrderListItem } from "./types";
+  getRecordSummary,
+  groupRecordsByGoods,
+  getRecordsByGoods,
+  filterRecordsInRange,
+  type IncomeRecord,
+  type RecordSummary,
+  type GoodsIncomeRow
+} from "./income/income-record";
+import { annotateRecordsWithGoodsIds } from "./income/goods-id-map";
+import { monthRange, todayRange, weekRange } from "./income/time-utils";
 
 export type {
-  IncomeSummary,
-  CategoryIncome
-} from "./income/income-calculation";
-export { DEFAULT_INCOME_POLICY } from "./income/income-policy";
-export type { IncomePolicy } from "./income/income-policy";
-export { DEFAULT_RANGE_PRESETS } from "./income/income-service-core";
+  IncomeRecord,
+  RecordSummary,
+  GoodsIncomeRow
+} from "./income/income-record";
+export type { IncomeSummaryData } from "./income/income-api";
 
-export type RangePresetKey = keyof typeof DEFAULT_RANGE_PRESETS;
+export type RangePresetKey = "today" | "week" | "month";
 
 /** 收入总览（首页卡片 + 收入页共用） */
 export interface IncomeDashboard {
   range: RangePresetKey;
-  policy: IncomePolicy;
-  summary: IncomeSummary;
-  categories: CategoryIncome[];
-  /** 未定义金额订单（引导设置规则的显式清单） */
-  undefinedOrders: OrderListItem[];
-  /** 规则命中数（我的统计与系统金额口径差异来源） */
-  overrideHitCount: number;
+  /** Worker summary（系统口径：moneys 直取） */
+  summary: IncomeSummaryData;
+  /** 我的统计（Σ effectiveAmount，规则覆盖后；无覆盖 = systemIncome） */
+  my: RecordSummary;
+  categories: GoodsIncomeRow[];
+  /** 今日/本周 = 月度明细上的前端时间过滤（数据诚实性标注） */
+  scopeNote: string;
+  /** 明细是否因超上限被截断（>10 页时 true，UI 须提示） */
+  truncated: boolean;
 }
 
-/** 拉取收入统计范围的订单（Mock 全量；Real 分页循环拉取，上限保护） */
-export async function fetchIncomeScope(
-  pageSize = 500,
-  maxPages = 4
-): Promise<OrderListItem[]> {
-  const all: OrderListItem[] = [];
-  for (let page = 1; page <= maxPages; page++) {
-    const res = await fetchOrders({ view: "all", page, pageSize });
-    all.push(...res.list);
-    if (all.length >= res.total || res.list.length === 0) break;
-  }
-  return all;
+function rangeLabel(range: RangePresetKey): string {
+  return range === "today" ? "今日" : range === "week" ? "本周" : "本月";
 }
 
 /**
- * 收入总览组装：订单范围 + 用户规则 → enrich → 汇总。
- * 默认口径 = DEFAULT_INCOME_POLICY（第一版固定，见 SPEC §2 [INFERRED] 待取证）。
+ * 收入总览组装：
+ * - month：Worker summary（系统口径）+ 全月明细 → My 口径（规则覆盖）+ 品类分布
+ * - today/week：同 month 拉月明细后按 createtime 前端过滤（SPEC §5，scopeNote 标注）
  */
 export async function getIncomeDashboard(
-  range: RangePresetKey,
-  policy: IncomePolicy = DEFAULT_INCOME_POLICY
+  range: RangePresetKey
 ): Promise<IncomeDashboard> {
-  const [orders, rules] = await Promise.all([
-    fetchIncomeScope(),
-    Promise.resolve(listRules() as PricingRule[])
+  const { monthKey } = monthRange();
+  const [summary, month] = await Promise.all([
+    fetchIncomeSummary({ range: "month", month: monthKey }),
+    loadMonthRecords(monthKey)
   ]);
-  const { from, to } = DEFAULT_RANGE_PRESETS[range]();
-  return enrichScope(orders, rules, policy, { from, to }, range);
+  const records = month.list;
+  const rules = listRules() as PricingRule[];
+  await annotateRecordsWithGoodsIds(records);
+
+  const rangeQ =
+    range === "today" ? todayRange() : range === "week" ? weekRange() : null;
+  const scoped = rangeQ ? filterRecordsInRange(records, rangeQ) : records;
+  const my = getRecordSummary(scoped, rules);
+  const categories = groupRecordsByGoods(scoped, rules);
+
+  return {
+    range,
+    summary:
+      range === "month" ? summary : { ...summary, orderCount: scoped.length },
+    my,
+    categories,
+    scopeNote:
+      range === "month"
+        ? "按中标时间统计"
+        : `按中标时间统计 · ${rangeLabel(range)}数据为当月明细的前端时间过滤`,
+    truncated: month.truncated
+  };
 }
 
-/** 反查：区间（+品类）内的计入订单（收入 → 品类 → 订单 → Drawer 链路） */
-export async function getIncomeOrderList(
+/** 反查：区间（+品类）内的收入记录（收入 → 品类 → 订单 Drawer 链路） */
+export async function getIncomeRecordList(
   range: RangePresetKey,
-  category?: string,
-  policy: IncomePolicy = DEFAULT_INCOME_POLICY
-): Promise<OrderListItem[]> {
-  const [orders, rules] = await Promise.all([
-    fetchIncomeScope(),
-    Promise.resolve(listRules() as PricingRule[])
-  ]);
-  const { from, to } = DEFAULT_RANGE_PRESETS[range]();
-  return getIncomeOrders(orders, rules, policy, { from, to }, category);
+  category?: string
+): Promise<IncomeRecord[]> {
+  const { monthKey } = monthRange();
+  const { list: records } = await loadMonthRecords(monthKey);
+  await annotateRecordsWithGoodsIds(records);
+  const rangeQ =
+    range === "today" ? todayRange() : range === "week" ? weekRange() : null;
+  return getRecordsByGoods(records, rangeQ ?? {}, category);
 }
 
-/** 未定义金额订单（首页"金额待完善"提醒与收入页未定义计数共用） */
-export async function getUndefinedOrders(
-  policy: IncomePolicy = DEFAULT_INCOME_POLICY
-): Promise<OrderListItem[]> {
-  const orders = await fetchIncomeScope();
-  return getUndefinedAmountOrders(orders, policy);
+/** 未定义金额记录（真实源下 legacyAmount 恒有值 → 恒为空清单；保留显式语义防静默） */
+export async function getUndefinedRecords(): Promise<IncomeRecord[]> {
+  const { monthKey } = monthRange();
+  const { list: records } = await loadMonthRecords(monthKey);
+  return records.filter(r => r.legacyAmount === null);
+}
+
+/** 月明细加载（truncated 时 throw——SPEC §5：超上限降级需显式处理，禁静默截断冒充全量） */
+async function loadMonthRecords(monthKey: string): Promise<{
+  list: IncomeRecord[];
+  truncated: boolean;
+}> {
+  const { list, total, truncated } = await fetchIncomeMonthRecords(monthKey);
+  if (truncated) {
+    throw new Error(
+      `收入明细超出拉取上限（total=${total}），已拒绝截断统计（SPEC §5）`
+    );
+  }
+  return { list, truncated };
 }

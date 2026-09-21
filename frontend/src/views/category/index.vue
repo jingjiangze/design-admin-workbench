@@ -176,9 +176,9 @@ import {
   listRules,
   buildImportPreview,
   commitImport,
-  exportRules,
-  type PricingRule
+  exportRules
 } from "@/service/pricing/pricing-rule-store";
+import type { PricingRule } from "@/service/pricing/pricing-rule-types";
 
 defineOptions({ name: "CategoryList" });
 

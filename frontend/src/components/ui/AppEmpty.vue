@@ -22,7 +22,7 @@ import AppIcon from "./AppIcon.vue";
 withDefaults(
   defineProps<{
     text: string;
-    icon?: "check" | "inbox" | "none";
+    icon?: "check" | "inbox" | "close" | "alert" | "none";
   }>(),
   { icon: "inbox" }
 );

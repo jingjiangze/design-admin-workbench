@@ -254,7 +254,7 @@ onMounted(async () => {
     allOrders.value = ordersRes?.list ?? [];
     expediteUnread.value = messages.filter(m => !m.read).length;
     monthIncome.value = income
-      ? formatCny(income.summary.income)
+      ? formatCny(income.summary.systemIncome)
       : formatCny(0);
     catalog.value = goods;
   } finally {
