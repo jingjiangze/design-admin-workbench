@@ -10,13 +10,16 @@ import {
   baselineResolution
 } from "../pricing/amount-resolution";
 
-/** 列表查询参数（state 传旧系统过滤枚举 ""/1..8/11/12，keyword 走服务端模糊） */
+/** 列表查询参数（state 传旧系统过滤枚举 ""/1..8/11/12，keyword 走服务端模糊；日期 [VERIFIED] 可选） */
 export interface LegacyOrderListParams {
   page: number;
   limit: number;
   /** 旧系统状态过滤枚举；"" = 全部 */
   state?: string;
   keyword?: string;
+  /** 下单日期范围（yyyy-MM-dd，Worker 白名单校验后透传 begindate/enddate） */
+  beginDate?: string;
+  endDate?: string;
 }
 
 /**

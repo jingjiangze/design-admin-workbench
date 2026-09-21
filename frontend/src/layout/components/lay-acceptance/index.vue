@@ -2,14 +2,14 @@
 /**
  * 接单开关（Header pill）—— 对应旧系统首页"接单状态"开关
  *
- * 交互纪律：
- * - 切换必经二次确认（写操作，影响真实派单）；
+ * 交互纪律（2026-09-21 用户指定）：
+ * - 开启/关闭接单点击即执行、立即生效，不弹二次确认；
  * - 定时关闭仅执行"关闭"方向（Worker cron 单向执行，绝不自动开启）；
  * - 状态读取失败（degraded）时开关置灰并提示，不猜测状态。
  */
 import { ref, computed, onMounted } from "vue";
 import dayjs from "dayjs";
-import { ElMessage, ElMessageBox } from "element-plus";
+import { ElMessage } from "element-plus";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import {
   fetchAcceptanceStatus,
@@ -67,19 +67,7 @@ async function refresh() {
 }
 
 async function onSwitchChange(val: boolean) {
-  const tip = val
-    ? "确认开启接单？开启后发单员可直接派单或自动分单。"
-    : "确认关闭接单？关闭后不再自动分单（旧系统 30 分钟无操作也会自动关闭）。";
-  try {
-    await ElMessageBox.confirm(tip, "接单开关", {
-      confirmButtonText: "确认",
-      cancelButtonText: "取消",
-      type: "warning"
-    });
-  } catch {
-    switchValue.value = !val; // 取消：回滚开关显示
-    return;
-  }
+  // 直接执行、立即生效（不弹二次确认）；失败回滚开关显示
   loading.value = true;
   try {
     const res = await toggleAcceptance(val);

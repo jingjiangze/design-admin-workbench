@@ -47,6 +47,9 @@ export interface IncomeDashboard {
   scopeNote: string;
   /** 明细是否因超上限被截断（>10 页时 true，UI 须提示） */
   truncated: boolean;
+  /** 本月实际发生收入的商品中，未设置个人金额规则的 distinct 商品数
+   *  （首页"金额未设置"关注项真实源；无规则映射可得的商品也计入未覆盖） */
+  uncoveredGoodsCount: number;
 }
 
 function rangeLabel(range: RangePresetKey): string {
@@ -76,6 +79,22 @@ export async function getIncomeDashboard(
   const my = getRecordSummary(scoped, rules);
   const categories = groupRecordsByGoods(scoped, rules);
 
+  // 未设置个人金额的商品（真实源）：本月明细 distinct 商品键 ∉ enabled 且 amount!=null 的规则键
+  const coveredKeys = new Set(
+    rules
+      .filter(r => r.enabled && r.amount !== null)
+      .map(r => `${r.goodsId}|${r.subGoodsId ?? ""}`)
+  );
+  const uncoveredGoods = new Set<string>();
+  for (const r of records) {
+    if (r.goodsId == null) {
+      uncoveredGoods.add(r.goodsName); // 规则映射不可得 = 必然未覆盖
+      continue;
+    }
+    if (!coveredKeys.has(`${r.goodsId}|${r.subGoodsId ?? ""}`))
+      uncoveredGoods.add(r.goodsName);
+  }
+
   return {
     range,
     summary:
@@ -86,7 +105,8 @@ export async function getIncomeDashboard(
       range === "month"
         ? "按中标时间统计"
         : `按中标时间统计 · ${rangeLabel(range)}数据为当月明细的前端时间过滤`,
-    truncated: month.truncated
+    truncated: month.truncated,
+    uncoveredGoodsCount: uncoveredGoods.size
   };
 }
 

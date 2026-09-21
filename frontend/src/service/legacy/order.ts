@@ -28,7 +28,9 @@ export async function fetchLegacyOrderList(
       page: params.page,
       limit: params.limit,
       state: params.state ?? "",
-      ...(params.keyword ? { keyword: params.keyword } : {})
+      ...(params.keyword ? { keyword: params.keyword } : {}),
+      ...(params.beginDate ? { beginDate: params.beginDate } : {}),
+      ...(params.endDate ? { endDate: params.endDate } : {})
     })}`,
     { timeout: 15000 }
   );

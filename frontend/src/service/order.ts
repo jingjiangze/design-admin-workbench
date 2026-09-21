@@ -22,27 +22,42 @@ const STATE_PARAM: Record<Exclude<OrderView, "all">, string> = {
   at_risk: "8"
 };
 
-/** 列表查询（6 视图 + 分页 + 关键词） */
+/** 列表查询（6 视图 + 分页 + 关键词 + 日期范围） */
 export async function fetchOrders(params: {
   view: OrderView;
   page: number;
   pageSize: number;
   keyword?: string;
-}): Promise<{ total: number; list: OrderListItem[] }> {
+  /** 下单日期范围（yyyy-MM-dd，Real 通道透传服务端过滤；Mock 通道忽略） */
+  beginDate?: string;
+  endDate?: string;
+}): Promise<{
+  total: number;
+  list: OrderListItem[];
+  /** 6 状态计数器（countInfo：wait/nofeedback/didnotpass/badordercount/aftersale/flowmarker）；
+   *  [VERIFIED] 无 total 字段（total 在 pageInfo），首页聚合真实源 */
+  countInfo?: Record<string, number>;
+}> {
   const state = params.view === "all" ? "" : STATE_PARAM[params.view];
 
   if (!isLegacyRealEnabled()) {
     // Mock 通道：脱敏真实样本 → 同一映射管道（保证映射逻辑被 Mock 数据同样校验）
     const mock = getMockOrderList();
     const list = mock.data?.pageInfo?.list?.map(mapLegacyOrderListItem) ?? [];
-    return { total: list.length, list };
+    return {
+      total: list.length,
+      list,
+      countInfo: mock.data?.countInfo
+    };
   }
 
   const res = await fetchLegacyOrderList({
     page: params.page,
     limit: params.pageSize,
     state,
-    keyword: params.keyword
+    keyword: params.keyword,
+    beginDate: params.beginDate,
+    endDate: params.endDate
   });
   if (res.result === false || !res.data?.pageInfo) {
     throw new Error(
@@ -51,6 +66,7 @@ export async function fetchOrders(params: {
   }
   return {
     total: res.data.pageInfo.total,
-    list: res.data.pageInfo.list.map(mapLegacyOrderListItem)
+    list: res.data.pageInfo.list.map(mapLegacyOrderListItem),
+    countInfo: res.data.countInfo
   };
 }

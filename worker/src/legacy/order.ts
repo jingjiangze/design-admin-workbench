@@ -19,16 +19,31 @@ export interface OrderListQuery {
   /** 旧系统状态过滤枚举 ""/"1".."8"/"11"/"12"（六视图映射在前端完成） */
   state: string;
   keyword?: string;
+  /** 下单日期范围过滤（旧系统 begindate/enddate，[VERIFIED] 可选参数） */
+  beginDate?: string;
+  endDate?: string;
 }
+
+/** yyyy-MM-dd 严格白名单（防注入，旧系统按字面量拼接） */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function parseOrderListQuery(url: URL): OrderListQuery {
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1") || 1);
   const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? "20") || 20));
   const state = url.searchParams.get("state") ?? "";
   const keyword = url.searchParams.get("keyword") ?? undefined;
+  const beginDate = url.searchParams.get("beginDate") ?? undefined;
+  const endDate = url.searchParams.get("endDate") ?? undefined;
   // state 白名单：空 + 数字枚举，防注入
   const safeState = state === "" || /^[0-9]{1,2}$/.test(state) ? state : "";
-  return { page, limit, state: safeState, keyword: keyword?.slice(0, 100) };
+  return {
+    page,
+    limit,
+    state: safeState,
+    keyword: keyword?.slice(0, 100),
+    beginDate: beginDate && DATE_RE.test(beginDate) ? beginDate : undefined,
+    endDate: endDate && DATE_RE.test(endDate) ? endDate : undefined
+  };
 }
 
 export async function fetchLegacyOrderList(
@@ -47,6 +62,9 @@ export async function fetchLegacyOrderList(
   // [VERIFIED 2026-09-21] 旧系统搜索参数 = ordernum（订单号包含匹配，空=全量）；
   // form.keyword 会被旧系统静默忽略（返回全量不过滤）——禁止回退到 keyword 参数名。
   if (query.keyword) form.ordernum = query.keyword;
+  // [VERIFIED] begindate/enddate 可选日期过滤（LEGACY_API_MAP 实测），仅白名单格式透传
+  if (query.beginDate) form.begindate = query.beginDate;
+  if (query.endDate) form.enddate = query.endDate;
 
   const res = await legacyFetch(env, "/chsjs/child/getOrderList.do", {
     legacyCookie,

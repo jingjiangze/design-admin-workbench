@@ -102,9 +102,18 @@
 
 <script setup lang="ts">
 /**
- * 工作台首页（Phase UI-R1 §九~§十五）
+ * 工作台首页（Phase UI-R1 §九~§十五；P1-09 真实聚合版）
  * Search First + 极简统计 + 关注列表 + 最近订单；无统计卡堆叠、无图表
- * 数据一律走 Domain Service（§四十五：无任何硬编码假数据）
+ * 数据一律走 Domain Service（§四十五：无任何硬编码假数据）。
+ *
+ * P1-09 真实口径（HOME_WORKBENCH_SPEC 冻结表）：
+ * - 待处理   = countInfo.wait + nofeedback（[VERIFIED] 服务端 6 状态计数器）
+ * - 今日订单 = begindate=enddate=今天 服务端筛选，取 pageInfo.total
+ * - 本月收入 = income.summary.systemIncome（失败显 "—"，禁伪装 ¥0）
+ * - 待催稿   = 催稿列表 !read 计数（未接收+已接收）
+ * - 最近订单 = 服务端默认排序前 5 条仅展示（不再拉 100 条前端自算）
+ * - 关注列表 = nofeedback 真实计数 + 本月实际接单中未设置个人金额的商品数；
+ *              dueSoon 已移除（旧列表无截稿时间排序的真实源，自算=以偏概全）
  */
 import { computed, inject, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -119,8 +128,6 @@ import {
 import { fetchOrders, type OrderListItem } from "@/service/order";
 import { fetchExpediteMessages } from "@/service/expedite";
 import { getIncomeDashboard } from "@/service/income";
-import { fetchGoodsCatalog, type GoodsItem } from "@/service/category";
-import { listRules } from "@/service/pricing/pricing-rule-store";
 
 defineOptions({ name: "Welcome" });
 
@@ -128,22 +135,21 @@ const router = useRouter();
 const openPalette = inject<() => void>("openCommandPalette");
 
 const loading = ref(true);
-const allOrders = ref<OrderListItem[]>([]);
+const recentOrders = ref<OrderListItem[]>([]);
+/** countInfo：6 状态计数器（wait/nofeedback/didnotpass/badordercount/aftersale/flowmarker） */
+const countInfo = ref<Record<string, number>>({});
 const expediteUnread = ref(0);
-const monthIncome = ref("¥—");
-const catalog = ref<GoodsItem[]>([]);
-
-/** 进行中+待接单 = 「待处理」口径 */
-const activeOrders = computed(() =>
-  allOrders.value.filter(
-    o => o.view === "in_progress" || o.view === "pending_accept"
-  )
-);
+const monthIncome = ref("—");
+const uncoveredGoodsCount = ref(0);
+/** 今日订单 = 服务端 begindate/enddate 过滤后的真实 total */
+const todayCount = ref(0);
 
 const stats = computed(() => ({
-  pendingCount: activeOrders.value.length,
+  // 冻结口径：待处理 = 待接单(wait) + 未反馈(nofeedback)
+  pendingCount:
+    (countInfo.value.wait ?? 0) + (countInfo.value.nofeedback ?? 0),
   expediteCount: expediteUnread.value,
-  todayCount: allOrders.value.filter(o => isToday(o.createTime)).length,
+  todayCount: todayCount.value,
   monthIncome: monthIncome.value
 }));
 
@@ -156,20 +162,7 @@ interface AttentionItem {
 
 const attentionItems = computed<AttentionItem[]>(() => {
   const items: AttentionItem[] = [];
-  const dueSoon = activeOrders.value.filter(o =>
-    isDueWithin24h(o.endTime)
-  ).length;
-  const noFeedback = allOrders.value.filter(
-    o => o.stateLabel === "未反馈"
-  ).length;
-  const undefinedGoods = countUndefinedGoods();
-  if (dueSoon > 0)
-    items.push({
-      key: "due",
-      count: dueSoon,
-      text: "个订单将在 24h 内截稿",
-      go: () => goOrders()
-    });
+  const noFeedback = countInfo.value.nofeedback ?? 0;
   if (noFeedback > 0)
     items.push({
       key: "feedback",
@@ -177,43 +170,15 @@ const attentionItems = computed<AttentionItem[]>(() => {
       text: "个订单尚未反馈",
       go: () => goOrders()
     });
-  if (undefinedGoods > 0)
+  if (uncoveredGoodsCount.value > 0)
     items.push({
       key: "amount",
-      count: undefinedGoods,
-      text: "个商品金额未设置",
+      count: uncoveredGoodsCount.value,
+      text: "个本月实际接单的商品未设置个人金额",
       go: () => router.push("/category/index")
     });
   return items;
 });
-
-/** 最近订单：截稿时间升序（最紧急在前），取 5 条 */
-const recentOrders = computed(() =>
-  [...activeOrders.value]
-    .sort((a, b) => String(a.endTime).localeCompare(String(b.endTime)))
-    .slice(0, 5)
-);
-
-// ── 时间工具（展示层聚合，长文 §四十七 前端聚合原则） ──
-function isToday(timeStr: string): boolean {
-  if (!timeStr) return false;
-  const d = new Date(timeStr.replace(/-/g, "/"));
-  if (Number.isNaN(d.getTime())) return false;
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
-}
-
-function isDueWithin24h(endTime: string): boolean {
-  if (!endTime) return false;
-  const d = new Date(endTime.replace(/-/g, "/"));
-  if (Number.isNaN(d.getTime())) return false;
-  const now = Date.now();
-  return d.getTime() > now && d.getTime() - now <= 24 * 3600 * 1000;
-}
 
 function fmtDeadline(endTime: string): string {
   if (!endTime) return "—";
@@ -225,16 +190,10 @@ function fmtDeadline(endTime: string): string {
   return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${hm}`;
 }
 
-/** 商品维度未设置金额：系统金额未定义 且 无个人规则（§三十七） */
-function countUndefinedGoods(): number {
-  const rules = listRules();
-  const ruleKeys = new Set(
-    rules.map(r => `${r.goodsId}|${r.subGoodsId ?? ""}`)
-  );
-  return catalog.value.filter(
-    g =>
-      g.legacyAmount === null && !ruleKeys.has(`${g.goodsId}|${g.subGoodsId}`)
-  ).length;
+/** 本地日期 yyyy-MM-dd（今日订单服务端过滤参数） */
+function todayStr(): string {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
 }
 
 function goOrders(keyword?: string) {
@@ -244,19 +203,31 @@ function goOrders(keyword?: string) {
 }
 
 onMounted(async () => {
+  const today = todayStr();
   try {
-    const [ordersRes, messages, income, goods] = await Promise.all([
-      fetchOrders({ view: "all", page: 1, pageSize: 100 }).catch(() => null),
+    const [recentRes, todayRes, messages, income] = await Promise.all([
+      // 最近订单：服务端默认排序（sort=0&sorttype=1）前 5 条，仅展示
+      fetchOrders({ view: "all", page: 1, pageSize: 5 }).catch(() => null),
+      // 今日订单：服务端日期过滤（[VERIFIED] begindate/enddate），limit=1 只为取 total
+      fetchOrders({
+        view: "all",
+        page: 1,
+        pageSize: 1,
+        beginDate: today,
+        endDate: today
+      }).catch(() => null),
       fetchExpediteMessages().catch(() => []),
-      getIncomeDashboard("month").catch(() => null),
-      fetchGoodsCatalog().catch(() => [])
+      getIncomeDashboard("month").catch(() => null)
     ]);
-    allOrders.value = ordersRes?.list ?? [];
+    recentOrders.value = recentRes?.list ?? [];
+    countInfo.value = recentRes?.countInfo ?? {};
+    todayCount.value = todayRes?.total ?? 0;
     expediteUnread.value = messages.filter(m => !m.read).length;
+    // 收入失败显 "—"（数据诚实性：失败 ≠ ¥0）
     monthIncome.value = income
       ? formatCny(income.summary.systemIncome)
-      : formatCny(0);
-    catalog.value = goods;
+      : "—";
+    uncoveredGoodsCount.value = income?.uncoveredGoodsCount ?? 0;
   } finally {
     loading.value = false;
   }

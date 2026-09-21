@@ -10,7 +10,7 @@
         "subGoodsname": "",
         "group": "名片卡类",
         "keywords": "名片 名片卡 card 普通名片",
-        "legacyAmount": 5
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812924",
@@ -28,7 +28,7 @@
         "subGoodsname": "特种纸名片",
         "group": "名片卡类",
         "keywords": "特种纸 特种纸名片 高档名片",
-        "legacyAmount": 8
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812927",
@@ -37,7 +37,7 @@
         "subGoodsname": "明信片",
         "group": "名片卡类",
         "keywords": "明信片 postcard 贺卡",
-        "legacyAmount": 4
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812928",
@@ -55,7 +55,7 @@
         "subGoodsname": "",
         "group": "宣传物料",
         "keywords": "海报 poster 张贴画",
-        "legacyAmount": 15
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812930",
@@ -64,7 +64,7 @@
         "subGoodsname": "",
         "group": "宣传物料",
         "keywords": "宣传单 传单 单页 dm",
-        "legacyAmount": 12
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812970",
@@ -73,7 +73,7 @@
         "subGoodsname": "",
         "group": "宣传物料",
         "keywords": "易拉宝 展架 x展架 门型展架",
-        "legacyAmount": 20
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812999",
@@ -91,7 +91,7 @@
         "subGoodsname": "",
         "group": "包装印刷",
         "keywords": "画册 册子 图册",
-        "legacyAmount": 10
+        "legacyAmount": null
       },
       {
         "goodsid": "1717812998",
@@ -109,7 +109,7 @@
         "subGoodsname": "凸版明信片",
         "group": "其他",
         "keywords": "明信片 凸版 凹凸",
-        "legacyAmount": 6
+        "legacyAmount": null
       }
     ]
   }
