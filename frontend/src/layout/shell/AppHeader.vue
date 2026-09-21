@@ -17,6 +17,8 @@
     </div>
 
     <div class="app-header__actions">
+      <!-- 接单开关 + 定时关闭（旧系统 updateWorkState.do 网关；切换必经二次确认） -->
+      <AcceptanceSwitch />
       <ElTooltip content="催稿通知" placement="bottom" :show-after="200">
         <button
           class="app-header__icon-btn"
@@ -63,6 +65,7 @@ import {
 } from "element-plus";
 import AppIcon from "@/components/ui/AppIcon.vue";
 import AppSearch from "@/components/ui/AppSearch.vue";
+import AcceptanceSwitch from "@/layout/components/lay-acceptance/index.vue";
 import { fetchExpediteMessages } from "@/service/expedite";
 import { getUserIdentity } from "@/service/pricing/pricing-rule-store";
 

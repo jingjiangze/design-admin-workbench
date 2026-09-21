@@ -51,6 +51,7 @@ class PureHttp {
     return new Promise(resolve => {
       PureHttp.requests.push((token: string) => {
         config.headers["Authorization"] = formatToken(token);
+        config.headers["X-CSRF-Token"] = token;
         resolve(config);
       });
     });
@@ -78,6 +79,8 @@ class PureHttp {
               if (data) {
                 const now = new Date().getTime();
                 const expired = parseInt(data.expires) - now <= 0;
+                // CSRF 双提交：Worker assertWriteOrigin 校验 X-CSRF-Token（值=csrfToken）
+                config.headers["X-CSRF-Token"] = data.accessToken;
                 if (expired) {
                   if (!PureHttp.isRefreshing) {
                     PureHttp.isRefreshing = true;

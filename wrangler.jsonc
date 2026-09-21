@@ -48,6 +48,13 @@
     "enabled": true
   },
 
+  // Cron Trigger：接单定时关闭（每 5 分钟扫描 acc-sched:* 到期任务）。
+  // ⚠️ 不确定 triggers 是否被 env 继承（继承陷阱教训），三环境全部显式声明。
+  // Mock 环境（顶层/preview/development）cron 内部先查 LEGACY_API_ENABLED，off 即空转。
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+
   // ⚠️ wrangler 4 的多环境键名是 "env"（不是 "environments"）。
   //    写错键名 wrangler 会静默忽略整个配置块（仅警告 Unexpected fields），
   //    --env preview/production 将报 No environment found。
@@ -87,6 +94,9 @@
     // ⚠️ wrangler 4 的 d1_databases/kv_namespaces 不被环境继承（实测警告），
     //    每个 --env 环境必须显式声明资源绑定。
     "staging": {
+      "triggers": {
+        "crons": ["*/5 * * * *"]
+      },
       "d1_databases": [
         {
           "binding": "DB",
@@ -115,6 +125,9 @@
     // 资源同顶层（KV SESSIONS + D1 design-workbench）——wrangler 4 不继承，
     // 必须显式声明（2026-09-20 staging 部署警告实测）。
     "production": {
+      "triggers": {
+        "crons": ["*/5 * * * *"]
+      },
       "d1_databases": [
         {
           "binding": "DB",

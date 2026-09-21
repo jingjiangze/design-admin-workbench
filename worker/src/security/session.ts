@@ -105,3 +105,36 @@ export async function getLegacyCookie(
   }
   return decryptString(env.SESSION_ENCRYPTION_KEY, record.legacyCookieEnc);
 }
+
+/**
+ * 按 userKey 反查最新有效 Session（无 request 上下文的场景：cron 定时任务）。
+ * KV list 前缀遍历 —— 当前用户量极小（单团队工具），可接受；
+ * 用户规模增长后再引入 userKey→sessionId 二级索引。
+ */
+export async function findLatestSessionByUserKey(
+  env: Env,
+  userKey: string
+): Promise<SessionRecord | null> {
+  let cursor: string | undefined;
+  let best: SessionRecord | null = null;
+  do {
+    const page = await env.SESSIONS.list({ prefix: "sess:", cursor });
+    for (const key of page.keys) {
+      const raw = await env.SESSIONS.get(key.name);
+      if (!raw) continue;
+      let record: SessionRecord;
+      try {
+        record = JSON.parse(raw) as SessionRecord;
+      } catch {
+        continue;
+      }
+      if (record.userKey !== userKey) continue;
+      if (new Date(record.expiresAt).getTime() <= Date.now()) continue;
+      if (!best || new Date(record.createdAt) > new Date(best.createdAt)) {
+        best = record;
+      }
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return best;
+}

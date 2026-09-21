@@ -16,6 +16,8 @@ import { requireSession, jsonOk, jsonError, type AuthContext } from "./security/
 import { parseOrderListQuery, fetchLegacyOrderList, fetchMockOrderList } from "./legacy/order";
 import { parseDetailQuery, fetchLegacyOrderDetail, fetchMockOrderDetail } from "./legacy/detail";
 import { parseRemindQuery, fetchLegacyRemindList, fetchMockRemindList, normalizeRemindInbox } from "./legacy/remind";
+import { handleAcceptance } from "./acceptance/routes";
+import { handleScheduledAcceptance } from "./acceptance/cron";
 import { LegacyError } from "./legacy/client";
 
 export default {
@@ -125,6 +127,12 @@ export default {
         return jsonOk(await fetchMockOrderList(env, query));
       }
 
+      // ── 接单开关 + 定时关闭（GET status / POST toggle / schedule CRUD）──
+      // 写操作已获用户授权（2026-09-21，updateWorkState.do）；不真实测试切换。
+      if (path.startsWith("/api/acceptance")) {
+        return await handleAcceptance(env, request, path, ctx);
+      }
+
       // ── 其余 /api/* 一律 404（白名单之外不存在任何代理能力） ──
       if (path.startsWith("/api/")) {
         return jsonError(404, "NOT_FOUND", "API 端点不存在");
@@ -138,6 +146,15 @@ export default {
       }
       return jsonError(500, "INTERNAL", "网关内部错误");
     }
+  },
+
+  // ── Cron Trigger：每 5 分钟检查到期定时关闭任务（acceptance/store.ts KV）──
+  async scheduled(
+    _event: ScheduledController,
+    env: Env,
+    _ctx: ExecutionContext
+  ): Promise<void> {
+    await handleScheduledAcceptance(env);
   }
 };
 

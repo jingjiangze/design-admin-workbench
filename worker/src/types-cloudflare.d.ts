@@ -8,6 +8,12 @@
  */
 
 /** KV 命名空间（仅用于 Session，见 docs/SESSION_STORAGE_SPEC.md） */
+export interface KVNamespaceListResult {
+  keys: { name: string; expiration?: number; metadata?: Record<string, unknown> }[];
+  list_complete: boolean;
+  cursor?: string;
+}
+
 export interface KVNamespace {
   get(key: string, options?: { type?: "text" | "json" }): Promise<unknown>;
   put(
@@ -16,6 +22,11 @@ export interface KVNamespace {
     options?: { expirationTtl?: number; metadata?: Record<string, unknown> }
   ): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options?: {
+    prefix?: string;
+    cursor?: string;
+    limit?: number;
+  }): Promise<KVNamespaceListResult>;
 }
 
 /** D1 数据库（仅用于 pricing_rules / users / user_settings） */
@@ -47,6 +58,12 @@ export interface Fetcher {
 export interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
+}
+
+/** Cron Trigger 执行事件（scheduled handler 参数，仅用到 cron 表达式） */
+export interface ScheduledController {
+  cron: string;
+  scheduledTime: number;
 }
 
 export type { KVNamespace as KVNamespaceAlias };

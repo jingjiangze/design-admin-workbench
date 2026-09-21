@@ -29,6 +29,7 @@
 | /chsjs/specialApply/insertSpecialOrder.do | POST | 特殊订单申请 | JSON `{reasonid,remark,applyimgs,needsid}`（凭证必填） | 未验证（未调用） | [VERIFIED] 源码 |
 | /chsjs/child/updateSubApplyReamrks.do | POST | 更新订单备注 | JSON（原拼写 Reamrks） | 未验证（未调用） | [VERIFIED] 源码 |
 | /chsjs/child/setBackgroundColor.do | POST | 行颜色标记 | JSON `{needsids, colorType}` | 未验证（未调用） | [VERIFIED] 源码 |
+| /chsjs/membersub/updateWorkState.do | POST | **接单开关**（旧首页"接单状态"） | 表单 `{workstate: 1=开启, 2=关闭}` | `{result, message}`；⚠️ 前缀 /membersub/；新系统已接入（2026-09-21 用户授权，docs/ACCEPTANCE_SWITCH_SPEC.md），未真实调用测试 | [VERIFIED] 源码+staging status 解析 |
 
 ### 异常 / 打回 / 定金 / 申诉
 

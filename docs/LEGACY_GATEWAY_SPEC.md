@@ -36,6 +36,9 @@
 | `/api/orders` | GET | `getOrderList.do`（Worker 侧 POST 表单=查询语义） | **强制 sort=0&sorttype=1** |
 | `/api/orders/detail` | GET | `needsDetail2.do?needsid=` / `needsDetail.do?applyid=` | HTML 透传不解析 |
 | `/api/reminders` | GET | `getReminderMessageNew.do?page=&limit=`（GET 分页 JSON） | 收件箱只读；**[VERIFIED 2026-09-20]** `reminderMessage.do` 是 HTML 页面非 API，禁作数据源；响应 `{result, data:{pageInfo:{list,total,…}}}` → Worker 适配 `{list,total,pageNum,pageSize}` |
+| `/api/acceptance/status` | GET | `memberCenter.do`（HTML 解析 checkbox，只读） | 接单开关状态；详见 docs/ACCEPTANCE_SWITCH_SPEC.md |
+| `/api/acceptance/toggle` | POST | `updateWorkState.do`（form `workstate=1\|2`） | **唯一获授权的旧系统写操作**（用户 2026-09-21：开关接单 + 定时关闭）；其余写接口仍禁 |
+| `/api/acceptance/schedule` | GET/POST/DELETE | —（KV + Cron `*/5 * * * *`） | 定时关闭接单（单向只关不开）；详见 docs/ACCEPTANCE_SWITCH_SPEC.md |
 | `/api/income/summary` `/api/income/orders` | GET | `getOrderList.do` | 语义别名，前端聚合 |
 | `/api/pricing/rules` (+`/:id`) | GET/POST/PUT/DELETE | — | D1（新系统自有数据） |
 
@@ -89,4 +92,6 @@ batchTakeover   updateRemark   updateIsRead
 insertAbnormalOrder   updateRepulseData   任何催稿发送
 ```
 
-第一阶段 legacy 网关仅 `childLogin.do` 一个 POST（登录语义，密文透传）；查询类 POST（getOrderList/reminderMessage）在旧系统语义上是查询，非数据写操作。
+**唯一写操作例外（2026-09-21 用户授权）**：`membersub/updateWorkState.do`（接单开关 `workstate=1|2`）——用于"开关接单 + 定时关闭"两个功能（docs/ACCEPTANCE_SWITCH_SPEC.md）；执行红线：不做自动化测试调用，真实切换仅由用户本人或到期 cron 触发。
+
+查询类 POST（getOrderList 等）在旧系统语义上是查询，非数据写操作。
