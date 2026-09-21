@@ -17,14 +17,6 @@ export default {
       meta: {
         title: "订单"
       }
-    },
-    {
-      path: "/order-history/index",
-      name: "OrderHistory",
-      component: () => import("@/views/order-history/index.vue"),
-      meta: {
-        title: "单号查历史"
-      }
     }
   ]
 } satisfies RouteConfigsTable;
