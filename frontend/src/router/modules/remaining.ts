@@ -46,6 +46,27 @@ export default [
     ]
   },
   {
+    // 真实数据证明页（#67 收尾 Wave）：逐域探测 INCOME/PRICING/HOME 数据通道
+    // 真实性，不进入正式导航（与 /ui-preview 同类）
+    path: "/real-data-proof",
+    name: "RealDataProof",
+    component: Layout,
+    meta: {
+      title: "真实数据证明",
+      showLink: false
+    },
+    children: [
+      {
+        path: "/real-data-proof/index",
+        name: "RealDataProofIndex",
+        component: () => import("@/views/real-data-proof/index.vue"),
+        meta: {
+          title: "真实数据证明"
+        }
+      }
+    ]
+  },
+  {
     // 视觉验收页（Phase UI-R1 §四十六）：展示基础组件，不进入正式导航
     path: "/ui-preview",
     name: "UiPreview",
