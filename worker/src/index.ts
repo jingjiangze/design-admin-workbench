@@ -29,6 +29,10 @@ import {
 } from "./legacy/income";
 import { handleAcceptance } from "./acceptance/routes";
 import { handleScheduledAcceptance } from "./acceptance/cron";
+import {
+  parsePriceChangeQuery,
+  fetchLegacyPriceChange
+} from "./legacy/price-change";
 import { LegacyError } from "./legacy/client";
 
 export default {
@@ -110,6 +114,18 @@ export default {
           return new Response(upstream.body, { status: 200, headers });
         }
         return withNoStore(await fetchMockOrderDetail(query.needsid ?? query.applyid ?? ""));
+      }
+
+      // ── 改价申请/改价记录（GET /api/orders/price-change?orderNo=）── JSON 透传
+      // [VERIFIED 2026-09-21] 上游 = GET /chsjs/editNeeds/query?ordernum=（详情页改价记录按钮）
+      if (path === "/api/orders/price-change" && request.method === "GET") {
+        const orderNo = parsePriceChangeQuery(url);
+        if (isLegacyEnabled(env)) {
+          const cookie = await legacyCookieOf(env, ctx);
+          const upstream = await fetchLegacyPriceChange(env, cookie, orderNo);
+          return jsonOk((await upstream.json()) as unknown);
+        }
+        return jsonOk({ result: false, message: "MOCK 模式无改价记录" });
       }
 
       // ── 催稿收件箱（GET /api/reminders）──

@@ -21,6 +21,19 @@ export type {
   LegacyFileConstraint
 } from "./types";
 
+/** 原始详情 HTML 拉取（交稿记录等区块解析用；单号查历史功能） */
+export async function fetchLegacyDetailHtml(needsid: string): Promise<string> {
+  return http.request<string>(
+    "get",
+    `/api/orders/detail?needsid=${encodeURIComponent(needsid)}`,
+    {
+      responseType: "text",
+      headers: { Accept: "text/html, */*; q=0.01" },
+      timeout: 30000
+    }
+  );
+}
+
 /** GET 详情（经 Worker 透传）并提取内嵌 JSON（两个详情接口共用此管道） */
 async function fetchDetailHtml(
   query: string
