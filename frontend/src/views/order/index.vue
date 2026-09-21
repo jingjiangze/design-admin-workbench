@@ -67,6 +67,7 @@
         <span>设计费</span>
         <span>状态</span>
         <span class="orders__right">截稿</span>
+        <span>操作</span>
       </div>
 
       <AppSkeleton v-if="loading" :rows="6" type="table" />
@@ -85,7 +86,16 @@
               @change="toggleSelect(o.orderId)"
             />
           </span>
-          <span class="app-mono orders__no">{{ o.orderNo }}</span>
+          <span class="orders__no-cell">
+            <!-- 绿点 = 当前用户已确认完成对应操作（WORKFLOW-V2：防漏单标记，
+                 非旧系统状态/已读/已联系；处理后保留在列表，不参与排序） -->
+            <span
+              class="orders__dot"
+              :class="{ 'orders__dot--green': isHandled(o) }"
+              :title="handledAtText(o)"
+            />
+            <span class="app-mono orders__no">{{ o.orderNo }}</span>
+          </span>
           <span class="orders__muted">{{
             o.productName || o.taskType || "—"
           }}</span>
@@ -94,6 +104,30 @@
           <span><AppStatus :label="o.stateLabel" /></span>
           <span class="orders__muted orders__right app-num">
             {{ fmtDeadline(o.endTime) }}
+          </span>
+          <span class="orders__actions" @click.stop>
+            <template v-if="!isHandled(o)">
+              <AppButton
+                v-if="canTakeover(o)"
+                variant="text"
+                size="sm"
+                :disabled="actionBusy"
+                @click="takeoverOne(o)"
+              >
+                接单
+              </AppButton>
+              <AppButton
+                variant="text"
+                size="sm"
+                :disabled="actionBusy"
+                @click="markOneHandled(o)"
+              >
+                我已处理
+              </AppButton>
+            </template>
+            <span v-else class="orders__handled-at app-num">
+              已处理 {{ handledAtText(o) }}
+            </span>
           </span>
         </div>
       </template>
@@ -130,6 +164,24 @@
         >
           生成催稿文本
         </AppButton>
+        <AppButton
+          variant="ghost"
+          size="sm"
+          icon="check"
+          :disabled="actionBusy"
+          @click="bulkTakeover"
+        >
+          一键接单
+        </AppButton>
+        <AppButton
+          variant="ghost"
+          size="sm"
+          icon="check"
+          :disabled="actionBusy"
+          @click="bulkMarkHandled"
+        >
+          我已处理
+        </AppButton>
         <button
           class="orders__bulk-close"
           type="button"
@@ -161,6 +213,7 @@ import { useRoute } from "vue-router";
 import {
   ElCheckbox,
   ElMessage,
+  ElMessageBox,
   ElPagination,
   ElSelect,
   ElOption
@@ -187,6 +240,13 @@ import {
   renderRemindTextBatch,
   type RemindTemplateVars
 } from "@/service/expedite";
+import {
+  listHandledMarkers,
+  markHandled,
+  takeoverOrders,
+  orderMarkerKey,
+  type TakeoverResult
+} from "@/service/workflow";
 
 defineOptions({ name: "OrderList" });
 
@@ -213,6 +273,171 @@ const selected = ref(new Set<string>());
 const drawerVisible = ref(false);
 const drawerId = ref<string | null>(null);
 const drawerRow = ref<OrderListItem | null>(null);
+
+// ── 个人防漏单标记（WORKFLOW-V2：绿点 = 我已确认完成，非旧系统状态） ──
+/** order:{needsid} → processedAt */
+const handledMap = ref(new Map<string, string>());
+const actionBusy = ref(false);
+
+async function loadHandled() {
+  try {
+    handledMap.value = await listHandledMarkers();
+  } catch {
+    // 标记加载失败不阻断列表（绿点缺失 ≠ 数据丢失，可重进页面重载）
+    handledMap.value = new Map();
+  }
+}
+
+function isHandled(o: OrderListItem): boolean {
+  return handledMap.value.has(`order:${o.orderId}`);
+}
+
+function handledAtText(o: OrderListItem): string {
+  const iso = handledMap.value.get(`order:${o.orderId}`);
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+/** 可接单：待接单 Tab 行（有 applyid 才能调 batchTakeover） */
+function canTakeover(o: OrderListItem): boolean {
+  return o.stateLabel === "待接单" && !!o.applyId;
+}
+
+function mergeResults(results: TakeoverResult[]) {
+  const next = new Map(handledMap.value);
+  for (const r of results) {
+    if (r.ok && r.processedAt) next.set(`order:${r.orderId}`, r.processedAt);
+  }
+  handledMap.value = next;
+}
+
+/** 应用批量结果提示（部分失败逐项准确，失败项绝不亮绿点） */
+function reportResults(results: TakeoverResult[], actionLabel: string) {
+  const okCount = results.filter(r => r.ok).length;
+  const failed = results.filter(r => !r.ok);
+  if (!failed.length) {
+    ElMessage.success(`${actionLabel}成功 ${okCount} 条`);
+    return;
+  }
+  const firstReason = failed[0].message ? `：${failed[0].message}` : "";
+  if (okCount > 0) {
+    ElMessage.warning(
+      `${actionLabel}成功 ${okCount} 条，失败 ${failed.length} 条${firstReason}`
+    );
+  } else {
+    ElMessage.error(`${actionLabel}失败 ${failed.length} 条${firstReason}`);
+  }
+}
+
+/** 单条接单（旧系统 batchTakeover；成功后才亮绿点，失败保持原样） */
+async function takeoverOne(o: OrderListItem) {
+  try {
+    await ElMessageBox.confirm(
+      "将调用旧系统接单接口（batchTakeover），确认接单？",
+      "一键接单",
+      {
+        confirmButtonText: "确认接单",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    );
+  } catch {
+    return;
+  }
+  actionBusy.value = true;
+  try {
+    const results = await takeoverOrders([
+      { applyId: o.applyId, orderId: o.orderId }
+    ]);
+    mergeResults(results);
+    reportResults(results, "接单");
+  } catch {
+    ElMessage.error("接单请求失败，订单保持未处理状态");
+  } finally {
+    actionBusy.value = false;
+  }
+}
+
+/** 单条本地"我已处理"（防漏单标记，不触旧系统） */
+async function markOneHandled(o: OrderListItem) {
+  actionBusy.value = true;
+  try {
+    await markHandled([orderMarkerKey(o.orderId)]);
+    const next = new Map(handledMap.value);
+    if (!next.has(`order:${o.orderId}`)) {
+      next.set(`order:${o.orderId}`, new Date().toISOString());
+    }
+    handledMap.value = next;
+  } catch {
+    ElMessage.error("标记失败，请重试");
+  } finally {
+    actionBusy.value = false;
+  }
+}
+
+/** 批量一键接单：逐条调用旧系统；部分失败仅成功项亮绿点，订单全部保留在列表 */
+async function bulkTakeover() {
+  const targets = selectedRows()
+    .filter(canTakeover)
+    .filter(o => !isHandled(o));
+  if (!targets.length) {
+    ElMessage.info("所选订单中没有可接单的待接单订单");
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将对 ${targets.length} 个订单调用旧系统接单接口（batchTakeover），确认继续？`,
+      "批量一键接单",
+      {
+        confirmButtonText: "确认接单",
+        cancelButtonText: "取消",
+        type: "warning"
+      }
+    );
+  } catch {
+    return;
+  }
+  actionBusy.value = true;
+  try {
+    const results = await takeoverOrders(
+      targets.map(o => ({ applyId: o.applyId, orderId: o.orderId }))
+    );
+    mergeResults(results);
+    reportResults(results, "接单");
+  } catch {
+    ElMessage.error("批量接单请求失败，所有订单保持未处理状态");
+  } finally {
+    actionBusy.value = false;
+  }
+}
+
+/** 批量本地"我已处理"（防漏单标记） */
+async function bulkMarkHandled() {
+  const targets = selectedRows().filter(o => !isHandled(o));
+  if (!targets.length) {
+    ElMessage.info("所选订单均已标记");
+    return;
+  }
+  actionBusy.value = true;
+  try {
+    await markHandled(targets.map(o => orderMarkerKey(o.orderId)));
+    const next = new Map(handledMap.value);
+    const now = new Date().toISOString();
+    for (const o of targets) {
+      if (!next.has(`order:${o.orderId}`)) next.set(`order:${o.orderId}`, now);
+    }
+    handledMap.value = next;
+    ElMessage.success(
+      `已标记 ${targets.length} 条为已处理（不影响旧系统状态）`
+    );
+  } catch {
+    ElMessage.error("标记失败，请重试");
+  } finally {
+    actionBusy.value = false;
+  }
+}
 
 // ── 渐进加载（2026-09-21 用户指令：先拉最近订单，全部订单后台默认拉取） ──
 
@@ -310,6 +535,7 @@ onMounted(() => {
     keyword.value = q;
   }
   void load();
+  void loadHandled();
 });
 
 // ── 客户端筛选（品类/时间）：本地全量缓存就绪时作用全量，否则当前页 ──
@@ -562,6 +788,39 @@ async function bulkRemindText() {
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--app-text);
+  white-space: nowrap;
+}
+
+/* 订单号单元：绿点 + 单号（WORKFLOW-V2 绿点 = 我已确认完成，防漏单标记） */
+.orders__no-cell {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.orders__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  background: var(--app-border);
+  border-radius: 50%;
+}
+
+.orders__dot--green {
+  background: var(--app-success);
+  box-shadow: 0 0 0 3px var(--app-success-soft);
+}
+
+.orders__actions {
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.orders__handled-at {
+  font-size: 12px;
+  color: var(--app-success);
   white-space: nowrap;
 }
 
