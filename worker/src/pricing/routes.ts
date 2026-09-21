@@ -122,8 +122,18 @@ export async function handlePricingRules(
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
 
-    // 唯一键冲突 → 覆盖更新（upsert 语义）
-    const result = await db
+    // 限额保护（Free 档 rows write 100k/天）——插入前预检，拒绝即不落行
+    const count = await db
+      .prepare("SELECT COUNT(*) AS c FROM pricing_rules WHERE user_id = ?1")
+      .bind(userId)
+      .first<{ c: number }>();
+    if ((count?.c ?? 0) >= MAX_RULES_PER_USER) {
+      return jsonError(429, "RULE_LIMIT", "规则数量超限（500）");
+    }
+
+    // 唯一键冲突 → 覆盖更新（upsert 语义）；RETURNING 返回真实行 id
+    //（冲突时新 UUID 不落库，响应必须带既有行 id 供后续 PUT/DELETE）
+    const upserted = await db
       .prepare(
         `INSERT INTO pricing_rules
            (id, user_id, goods_id, sub_goods_id, product_name, amount, enabled, created_at, updated_at)
@@ -132,20 +142,16 @@ export async function handlePricingRules(
            product_name = excluded.product_name,
            amount = excluded.amount,
            enabled = excluded.enabled,
-           updated_at = excluded.updated_at`
+           updated_at = excluded.updated_at
+         RETURNING id`
       )
       .bind(id, userId, goodsId, subGoodsId, body.productName, amount, body.enabled === false ? 0 : 1, now)
-      .run();
+      .first<{ id: string }>();
 
-    // 限额保护（Free 档 rows write 100k/天）
-    const count = await db
-      .prepare("SELECT COUNT(*) AS c FROM pricing_rules WHERE user_id = ?1")
-      .bind(userId)
-      .first<{ c: number }>();
-    if ((count?.c ?? 0) > MAX_RULES_PER_USER) {
-      return jsonError(429, "RULE_LIMIT", "规则数量超限（500）");
-    }
-    return jsonOk({ result: true, data: { id, upserted: result.success } });
+    return jsonOk({
+      result: true,
+      data: { id: upserted?.id ?? id, upserted: true }
+    });
   }
 
   // DELETE /api/pricing/rules/:id —— 恢复系统金额
@@ -177,8 +183,9 @@ export async function handlePricingRules(
     }
     const userId = await resolveUserId(db, ctx.session.userKey);
     const now = new Date().toISOString();
-    // 占位符索引顺序：?1=updated_at, ?2=id(WHERE), ?3=amount, ?4=enabled, ?5=user_id
-    // D1 bind 按数组顺序绑定 ?1..?n，必须严格按索引排列（不能用 sets 拼接顺序）
+    // 匿名占位符（?）按 SQL 出现顺序绑定——编号占位符（?N）在"单字段更新"
+    // 时会出现索引断裂（?3 不在 SQL 中但 bind 有第 3 个值），D1 按
+    // sqlite 参数序号映射会错位，因此这里必须用匿名占位符。
     const idParam = putMatch[1];
     const amountParam = body.amount !== undefined ? validateAmountSafe(body.amount) : undefined;
     if (body.amount !== undefined && amountParam === undefined && body.amount !== null) {
@@ -189,16 +196,21 @@ export async function handlePricingRules(
     if (!hasAmount && !hasEnabled) {
       return jsonError(400, "NOTHING_TO_UPDATE", "无可更新字段");
     }
-    const params: (string | number | null)[] = [now, idParam];
-    if (hasAmount) params.push(amountParam ?? null);
-    if (hasEnabled) params.push(body.enabled ? 1 : 0);
-    params.push(userId);
+    const sets: string[] = ["updated_at = ?"];
+    const params: (string | number | null)[] = [now];
+    if (hasAmount) {
+      sets.push("amount = ?");
+      params.push(amountParam ?? null);
+    }
+    if (hasEnabled) {
+      sets.push("enabled = ?");
+      params.push(body.enabled ? 1 : 0);
+    }
+    params.push(idParam, userId);
     const upd = await db
       .prepare(
-        `UPDATE pricing_rules SET updated_at = ?1${
-          hasAmount ? ", amount = ?3" : ""
-        }${hasEnabled ? ", enabled = ?4" : ""}
-         WHERE id = ?2 AND user_id = ?5`
+        `UPDATE pricing_rules SET ${sets.join(", ")}
+         WHERE id = ? AND user_id = ?`
       )
       .bind(...params)
       .run();
