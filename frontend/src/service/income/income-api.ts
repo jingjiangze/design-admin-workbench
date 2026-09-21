@@ -78,7 +78,9 @@ export async function fetchIncomeTrend(
   return body.data;
 }
 
-/** 月明细全量拉取（分页 limit=100；上限 10 页保护——SPEC §5，超限抛错而非静默截断） */
+/** 月明细全量拉取（分页 limit=100；上限 10 页保护——SPEC §5，超限抛错而非静默截断）
+ *  性能（2026-09-21）：首页拿 total 后剩余页并发拉取（此前串行 for，
+ *  3 页 = 3 倍 RTT；并发 3 对旧系统限流友好） */
 export async function fetchIncomeMonthRecords(
   month: string,
   maxPages = 10
@@ -87,23 +89,25 @@ export async function fetchIncomeMonthRecords(
     const m = mockData().orders as IncomeOrdersData;
     return { list: m.list, total: m.total, truncated: false };
   }
-  const all: IncomeRecord[] = [];
-  let total = 0;
-  for (let page = 1; page <= maxPages; page++) {
-    const body = await http.request<{
-      result: boolean;
-      data: IncomeOrdersData;
-    }>(
+  const fetchPage = (page: number) =>
+    http.request<{ result: boolean; data: IncomeOrdersData }>(
       "get",
       `/api/income/orders?${qs.stringify({ month, page, limit: 100 })}`,
-      {
-        timeout: 15000
-      }
+      { timeout: 15000 }
     );
-    total = body.data.total;
-    all.push(...(body.data.list ?? []));
-    if (all.length >= total || (body.data.list ?? []).length === 0) break;
+
+  const first = await fetchPage(1);
+  const total = first.data.total;
+  const all: IncomeRecord[] = [...(first.data.list ?? [])];
+  if (all.length >= total || (first.data.list ?? []).length === 0) {
+    return { list: all, total, truncated: all.length < total };
   }
+
+  const totalPages = Math.min(maxPages, Math.ceil(total / 100));
+  const rest = await Promise.all(
+    Array.from({ length: totalPages - 1 }, (_, i) => fetchPage(i + 2))
+  );
+  for (const body of rest) all.push(...(body.data.list ?? []));
   return { list: all, total, truncated: all.length < total };
 }
 

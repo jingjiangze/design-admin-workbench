@@ -23,7 +23,7 @@
       </template>
       <template v-else-if="loadError">
         <AppEmpty icon="inbox" text="收入数据加载失败">
-          <button class="income__retry" type="button" @click="load">
+          <button class="income__retry" type="button" @click="load()">
             重试
           </button>
         </AppEmpty>
@@ -181,6 +181,12 @@ import { resolveRecordAmount } from "@/service/income/income-record";
 import { listRules } from "@/service/pricing/pricing-rule-store";
 import { fetchOrders } from "@/service/order";
 import type { OrderListItem } from "@/service/types";
+import {
+  swrRead,
+  swrWrite,
+  swrIsFresh,
+  SWR_FRESH_MS
+} from "@/service/swr-cache";
 
 defineOptions({ name: "IncomeOverview" });
 
@@ -211,9 +217,11 @@ const rules = listRules();
 const hasOverride = computed(
   () => (dashboard.value?.my.overrideHitCount ?? 0) > 0
 );
-const systemAmount = computed(() =>
-  dashboard.value ? formatCny(dashboard.value.summary.systemIncome) : "¥—"
-);
+const systemAmount = computed(() => {
+  if (!dashboard.value) return "¥—";
+  const v = dashboard.value.summary.systemIncome;
+  return v == null ? "—" : formatCny(v); // null（无数据月）禁 "¥null"
+});
 const myAmount = computed(() => {
   if (!dashboard.value) return "¥—";
   // 无覆盖规则时我的统计 = 系统口径（不伪装差异，任务书 §五）
@@ -248,15 +256,18 @@ function switchRange(r: RangeKey) {
   void load();
 }
 
-async function load() {
-  loading.value = true;
+async function load(opts?: { quiet?: boolean }) {
+  if (!opts?.quiet) loading.value = true;
   loadError.value = false;
   try {
-    dashboard.value = await getIncomeDashboard(range.value);
+    const d = await getIncomeDashboard(range.value);
+    dashboard.value = d;
+    // SWR：month 总览写缓存（与首页共用 income-dashboard:month 键）
+    if (d.range === "month") swrWrite("income-dashboard:month", d);
   } catch {
-    // 红线：Real 失败 → 显式错误态（禁 mock fallback）
-    dashboard.value = null;
-    loadError.value = true;
+    // 红线：Real 失败 → 显式错误态（禁 mock fallback）；
+    // 缓存先行模式下 dashboard 仍显示旧数据（不置 null 打碎已渲染内容）
+    if (!dashboard.value) loadError.value = true;
   } finally {
     loading.value = false;
   }
@@ -329,7 +340,17 @@ function shortTime(t: string): string {
   return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-onMounted(() => void load());
+// SWR：month 总览缓存先行（毫秒级渲染），fresh 窗口外后台静默刷新
+onMounted(() => {
+  const cached = swrRead<IncomeDashboard>("income-dashboard:month");
+  if (cached?.data && range.value === "month") {
+    dashboard.value = cached.data;
+    loading.value = false;
+    if (!swrIsFresh(cached, SWR_FRESH_MS)) void load({ quiet: true });
+    return;
+  }
+  void load();
+});
 </script>
 
 <style scoped>

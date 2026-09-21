@@ -52,6 +52,49 @@ export function mapStateToView(stateLabel: string): OrderView | null {
   return table[stateLabel] ?? null;
 }
 
+/**
+ * 原后台系统 myOrder 页 Tab 分类（2026-09-21 用户指令：订单列表按原系统
+ * 分类方式展示）。[VERIFIED] docs/ORDER_MODEL.md 状态枚举表：
+ * state 9 = 售后（旧系统 Tab 已注释停用）→ 不设 Tab。
+ * state 12 = 不良订单 + 待超时订单（旧系统两 Tab 复用同值）。
+ */
+export const LEGACY_ORDER_TABS: ReadonlyArray<{
+  state: string;
+  label: string;
+}> = [
+  { state: "", label: "全部订单" },
+  { state: "1", label: "待接单" },
+  { state: "2", label: "未反馈" },
+  { state: "3", label: "设计中" },
+  { state: "4", label: "交稿审核" },
+  { state: "5", label: "审核通过" },
+  { state: "6", label: "审核不通过" },
+  { state: "7", label: "订单完结" },
+  { state: "8", label: "流标" },
+  { state: "11", label: "订单超时" },
+  { state: "12", label: "不良订单" }
+];
+
+/** 列表行中文状态标签 → Tab state 枚举（本地过滤用；与枚举表同源映射） */
+export function stateLabelToState(stateLabel: string): string | null {
+  const table: Record<string, string> = {
+    待接单: "1",
+    未反馈: "2",
+    设计中: "3",
+    交稿审核: "4",
+    审核通过: "5",
+    审核不通过: "6",
+    订单完结: "7",
+    完结: "7",
+    流标: "8",
+    超时: "11",
+    订单超时: "11",
+    不良: "12",
+    不良订单: "12"
+  };
+  return table[stateLabel] ?? null;
+}
+
 /** 订单列表视图模型（Adapter 层 38 字段映射的产物） */
 export interface OrderListItem {
   /** 订单主键（needsid） */

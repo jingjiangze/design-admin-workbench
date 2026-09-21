@@ -130,7 +130,11 @@ export async function resolveGoodsIdentity(
 /**
  * 批量解析：为收入记录集补全 goodsId/subGoodsId（原地标注）。
  * 每个未知 goodsName 仅实证一次（取该名下任一记录的订单号作样本）。
- * 单条实证失败 → 该名下所有行 goodsId=null（仅系统口径，My 口径按 legacy 计）。
+ * 性能（2026-09-21）：实证改为并行（此前串行 for——首次进入 10+ 个 miss
+ * = 20+ 串行请求，是收入链路 15s+ 的主要元凶）。
+ * 容错：单条实证失败仅影响该商品（goodsId=null，走系统口径），
+ * 绝不向上 throw 打挂整个收入模块（此前无 try-catch，一次搜索/详情
+ * 超时即全链失败——"收入模块加载失败"的根因）。
  */
 export async function annotateRecordsWithGoodsIds(
   records: IncomeRecord[]
@@ -141,10 +145,17 @@ export async function annotateRecordsWithGoodsIds(
     const name = r.goodsName || "未分类";
     if (!sample.has(name) && r.orderNo) sample.set(name, r.orderNo);
   }
-  for (const [name, orderNo] of sample) {
-    if (getCachedGoodsIdentity(name)) continue;
-    await resolveGoodsIdentity(name, orderNo); // miss 时实证 + 回填；失败静默（行 goodsId 留 null）
-  }
+  // 并行实证（每名独立 try-catch；失败静默 = 该名下所有行 goodsId 留 null）
+  await Promise.all(
+    [...sample.entries()].map(async ([name, orderNo]) => {
+      if (getCachedGoodsIdentity(name)) return;
+      try {
+        await resolveGoodsIdentity(name, orderNo);
+      } catch {
+        // 实证失败：不回填、不中断（行 goodsId=null → 仅系统口径）
+      }
+    })
+  );
   // 回填标注（缓存命中或刚实证的；实证失败的留 null）
   for (const r of records) {
     const name = r.goodsName || "未分类";

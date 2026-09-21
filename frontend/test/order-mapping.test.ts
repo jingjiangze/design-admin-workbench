@@ -63,7 +63,10 @@ describe("mapLegacyOrderListItem — 38 字段映射", () => {
       expect(m.amountSource).toBe("undefined");
     }
     // 0 是合法值
-    const zero = mapLegacyOrderListItem({ ...raw, design_money: 0 } as LegacyOrderListItem);
+    const zero = mapLegacyOrderListItem({
+      ...raw,
+      design_money: 0
+    } as LegacyOrderListItem);
     expect(zero.legacyAmount).toBe(0);
     expect(zero.amountSource).toBe("legacy");
   });

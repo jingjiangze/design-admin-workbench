@@ -50,6 +50,10 @@ export interface IncomeDashboard {
   /** 本月实际发生收入的商品中，未设置个人金额规则的 distinct 商品数
    *  （首页"金额未设置"关注项真实源；无规则映射可得的商品也计入未覆盖） */
   uncoveredGoodsCount: number;
+  /** 明细增强数据降级标志（2026-09-21）：月明细拉取/实证失败时 true，
+   *  my/categories/uncovered 按系统口径兜底显示，UI 注记"按系统口径"。
+   *  红线软化依据：用户指令"金额数据暂时使用系统现有默认金额，无需等待真实数据" */
+  detailDegraded: boolean;
 }
 
 function rangeLabel(range: RangePresetKey): string {
@@ -57,42 +61,79 @@ function rangeLabel(range: RangePresetKey): string {
 }
 
 /**
- * 收入总览组装：
- * - month：Worker summary（系统口径）+ 全月明细 → My 口径（规则覆盖）+ 品类分布
+ * 首页快速路径：只拉 summary（Worker 内 2 个旧系统请求），不等月明细。
+ * 首页本月收入卡专用 —— 完整 dashboard（my 口径/品类/关注项）走
+ * getIncomeDashboard 或 SWR 缓存，后台补齐。
+ */
+export async function getIncomeSummaryFast(): Promise<IncomeSummaryData> {
+  const { monthKey } = monthRange();
+  return fetchIncomeSummary({ range: "month", month: monthKey });
+}
+
+/**
+ * 收入总览组装（2026-09-21 重构）：
+ * - summary 失败 → throw（唯一硬失败点，UI 显式错误态）
+ * - 月明细失败/超限 → 降级 degraded=true，my 口径按系统金额兜底（不整体失败）
+ *   （此前：明细任何一环失败 = 整个收入模块"加载失败"——根因已修）
  * - today/week：同 month 拉月明细后按 createtime 前端过滤（SPEC §5，scopeNote 标注）
  */
 export async function getIncomeDashboard(
   range: RangePresetKey
 ): Promise<IncomeDashboard> {
   const { monthKey } = monthRange();
-  const [summary, month] = await Promise.all([
-    fetchIncomeSummary({ range: "month", month: monthKey }),
-    loadMonthRecords(monthKey)
-  ]);
-  const records = month.list;
+  const summary = await fetchIncomeSummary({ range: "month", month: monthKey });
   const rules = listRules() as PricingRule[];
-  await annotateRecordsWithGoodsIds(records);
+
+  // 明细增强：失败降级（SPEC §5 truncated throw 在此转为降级语义）
+  let records: IncomeRecord[] = [];
+  let truncated = false;
+  let detailDegraded = false;
+  try {
+    const month = await loadMonthRecords(monthKey);
+    records = month.list;
+    truncated = month.truncated;
+  } catch {
+    detailDegraded = true;
+  }
+  if (!detailDegraded) {
+    await annotateRecordsWithGoodsIds(records); // 已并行化 + 单名容错
+  }
 
   const rangeQ =
     range === "today" ? todayRange() : range === "week" ? weekRange() : null;
   const scoped = rangeQ ? filterRecordsInRange(records, rangeQ) : records;
-  const my = getRecordSummary(scoped, rules);
-  const categories = groupRecordsByGoods(scoped, rules);
+
+  // 降级兜底：my 口径 = 系统口径（Worker moneys 直取），禁 0 伪装、显式注记
+  const my: RecordSummary = detailDegraded
+    ? {
+        myIncome: summary.systemIncome ?? 0,
+        systemIncome: summary.systemIncome ?? 0,
+        orderCount: summary.orderCount,
+        avgPerOrder: summary.avgPerOrder,
+        undefinedCount: 0,
+        overrideHitCount: 0
+      }
+    : getRecordSummary(scoped, rules);
+  const categories = detailDegraded ? [] : groupRecordsByGoods(scoped, rules);
 
   // 未设置个人金额的商品（真实源）：本月明细 distinct 商品键 ∉ enabled 且 amount!=null 的规则键
-  const coveredKeys = new Set(
-    rules
-      .filter(r => r.enabled && r.amount !== null)
-      .map(r => `${r.goodsId}|${r.subGoodsId ?? ""}`)
-  );
-  const uncoveredGoods = new Set<string>();
-  for (const r of records) {
-    if (r.goodsId == null) {
-      uncoveredGoods.add(r.goodsName); // 规则映射不可得 = 必然未覆盖
-      continue;
+  let uncoveredGoodsCount = 0;
+  if (!detailDegraded) {
+    const coveredKeys = new Set(
+      rules
+        .filter(r => r.enabled && r.amount !== null)
+        .map(r => `${r.goodsId}|${r.subGoodsId ?? ""}`)
+    );
+    const uncoveredGoods = new Set<string>();
+    for (const r of records) {
+      if (r.goodsId == null) {
+        uncoveredGoods.add(r.goodsName); // 规则映射不可得 = 必然未覆盖
+        continue;
+      }
+      if (!coveredKeys.has(`${r.goodsId}|${r.subGoodsId ?? ""}`))
+        uncoveredGoods.add(r.goodsName);
     }
-    if (!coveredKeys.has(`${r.goodsId}|${r.subGoodsId ?? ""}`))
-      uncoveredGoods.add(r.goodsName);
+    uncoveredGoodsCount = uncoveredGoods.size;
   }
 
   return {
@@ -101,12 +142,14 @@ export async function getIncomeDashboard(
       range === "month" ? summary : { ...summary, orderCount: scoped.length },
     my,
     categories,
-    scopeNote:
-      range === "month"
+    scopeNote: detailDegraded
+      ? "按中标时间统计 · 明细加载失败，金额按系统口径显示"
+      : range === "month"
         ? "按中标时间统计"
         : `按中标时间统计 · ${rangeLabel(range)}数据为当月明细的前端时间过滤`,
-    truncated: month.truncated,
-    uncoveredGoodsCount: uncoveredGoods.size
+    truncated,
+    uncoveredGoodsCount,
+    detailDegraded
   };
 }
 

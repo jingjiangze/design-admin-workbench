@@ -102,7 +102,7 @@
 
 <script setup lang="ts">
 /**
- * 工作台首页（Phase UI-R1 §九~§十五；P1-09 真实聚合版）
+ * 工作台首页（Phase UI-R1 §九~§十五；P1-09 真实聚合 + SWR 缓存版）
  * Search First + 极简统计 + 关注列表 + 最近订单；无统计卡堆叠、无图表
  * 数据一律走 Domain Service（§四十五：无任何硬编码假数据）。
  *
@@ -111,9 +111,12 @@
  * - 今日订单 = begindate=enddate=今天 服务端筛选，取 pageInfo.total
  * - 本月收入 = income.summary.systemIncome（失败显 "—"，禁伪装 ¥0）
  * - 待催稿   = 催稿列表 !read 计数（未接收+已接收）
- * - 最近订单 = 服务端默认排序前 5 条仅展示（不再拉 100 条前端自算）
- * - 关注列表 = nofeedback 真实计数 + 本月实际接单中未设置个人金额的商品数；
- *              dueSoon 已移除（旧列表无截稿时间排序的真实源，自算=以偏概全）
+ * - 最近订单 = 服务端默认排序前 5 条仅展示
+ * - 关注列表 = nofeedback 真实计数 + 本月实际接单中未设置个人金额的商品数
+ *
+ * SWR（2026-09-21 用户指令）：首次加载后写 localStorage 缓存；再次进入
+ * 先渲染缓存（毫秒级出数据），后台静默刷新后无缝更新；fresh 60s 内跳过
+ * 刷新（旧系统限流友好，避免路由来回切换狂打请求）。
  */
 import { computed, inject, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -127,7 +130,17 @@ import {
 } from "@/components/ui";
 import { fetchOrders, type OrderListItem } from "@/service/order";
 import { fetchExpediteMessages } from "@/service/expedite";
-import { getIncomeDashboard } from "@/service/income";
+import {
+  getIncomeDashboard,
+  getIncomeSummaryFast,
+  type IncomeDashboard
+} from "@/service/income";
+import {
+  swrRead,
+  swrWrite,
+  swrIsFresh,
+  SWR_FRESH_MS
+} from "@/service/swr-cache";
 
 defineOptions({ name: "Welcome" });
 
@@ -146,8 +159,7 @@ const todayCount = ref(0);
 
 const stats = computed(() => ({
   // 冻结口径：待处理 = 待接单(wait) + 未反馈(nofeedback)
-  pendingCount:
-    (countInfo.value.wait ?? 0) + (countInfo.value.nofeedback ?? 0),
+  pendingCount: (countInfo.value.wait ?? 0) + (countInfo.value.nofeedback ?? 0),
   expediteCount: expediteUnread.value,
   todayCount: todayCount.value,
   monthIncome: monthIncome.value
@@ -202,32 +214,106 @@ function goOrders(keyword?: string) {
   );
 }
 
+// ── SWR：缓存先行 + 后台静默刷新 ──
+
+function todayStartMs(): number {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+}
+
+/** 用缓存立即渲染；返回是否命中任何缓存 */
+function renderFromCache(today: string): boolean {
+  void today;
+  const recent = swrRead<OrderListItem[]>("home:recent-orders");
+  const info = swrRead<Record<string, number>>("home:count-info");
+  const todayN = swrRead<number>("home:today-count");
+  const expedite = swrRead<number>("home:expedite-unread");
+  const incomeSummary = swrRead<{ systemIncome: number | null }>(
+    "income-summary:month"
+  );
+  const income = swrRead<IncomeDashboard>("income-dashboard:month");
+  // 今日计数缓存须为当天写入（跨天防陈旧"今日"数字）
+  const todayValid = !!todayN?.data && todayN.at >= todayStartMs();
+  if (!recent && !info && !todayValid && !expedite && !income && !incomeSummary)
+    return false;
+  if (recent?.data) recentOrders.value = recent.data;
+  if (info?.data) countInfo.value = info.data;
+  if (todayValid) todayCount.value = todayN.data;
+  if (expedite?.data != null) expediteUnread.value = expedite.data;
+  if (incomeSummary?.data) {
+    monthIncome.value =
+      incomeSummary.data.systemIncome != null
+        ? formatCny(incomeSummary.data.systemIncome)
+        : "—";
+  }
+  if (income?.data) {
+    monthIncome.value =
+      income.data.summary.systemIncome != null
+        ? formatCny(income.data.summary.systemIncome)
+        : "—";
+    uncoveredGoodsCount.value = income.data.uncoveredGoodsCount ?? 0;
+  }
+  return true;
+}
+
+/** 后台静默刷新：单链失败容忍（缓存内容仍展示），成功即写缓存 */
+async function refreshQuietly(today: string): Promise<void> {
+  // 收入两段式：summary 快路径（1 请求）先更新金额；完整 dashboard
+  // （月明细+实证，慢）后台补齐关注项与缓存 —— 金额无需等待真实明细
+  const incomeSummaryP = getIncomeSummaryFast()
+    .then(s => {
+      monthIncome.value =
+        s.systemIncome != null ? formatCny(s.systemIncome) : "—";
+      swrWrite("income-summary:month", s);
+    })
+    .catch(() => {
+      // summary 也失败：保持现状（缓存或 "—"），不伪装
+    });
+
+  const [recentRes, todayRes, messages, income] = await Promise.all([
+    fetchOrders({ view: "all", page: 1, pageSize: 5 }).catch(() => null),
+    fetchOrders({
+      view: "all",
+      page: 1,
+      pageSize: 1,
+      beginDate: today,
+      endDate: today
+    }).catch(() => null),
+    fetchExpediteMessages().catch(() => []),
+    getIncomeDashboard("month").catch(() => null)
+  ]);
+  if (recentRes) {
+    recentOrders.value = recentRes.list;
+    countInfo.value = recentRes.countInfo ?? {};
+    swrWrite("home:recent-orders", recentRes.list);
+    swrWrite("home:count-info", recentRes.countInfo ?? {});
+  }
+  if (todayRes) {
+    todayCount.value = todayRes.total;
+    swrWrite("home:today-count", todayRes.total);
+  }
+  expediteUnread.value = messages.filter(m => !m.read).length;
+  swrWrite("home:expedite-unread", expediteUnread.value);
+  if (income) {
+    uncoveredGoodsCount.value = income.uncoveredGoodsCount ?? 0;
+    swrWrite("income-dashboard:month", income);
+  }
+  await incomeSummaryP;
+}
+
 onMounted(async () => {
   const today = todayStr();
+  if (renderFromCache(today)) {
+    loading.value = false; // 缓存先行：立即渲染
+    const freshAll =
+      swrIsFresh(swrRead("home:count-info"), SWR_FRESH_MS) &&
+      swrIsFresh(swrRead("income-dashboard:month"), SWR_FRESH_MS);
+    if (!freshAll) void refreshQuietly(today); // 后台静默刷新
+    return;
+  }
+  // 完全首访：无缓存 → 骨架屏 + 等首轮数据落定
   try {
-    const [recentRes, todayRes, messages, income] = await Promise.all([
-      // 最近订单：服务端默认排序（sort=0&sorttype=1）前 5 条，仅展示
-      fetchOrders({ view: "all", page: 1, pageSize: 5 }).catch(() => null),
-      // 今日订单：服务端日期过滤（[VERIFIED] begindate/enddate），limit=1 只为取 total
-      fetchOrders({
-        view: "all",
-        page: 1,
-        pageSize: 1,
-        beginDate: today,
-        endDate: today
-      }).catch(() => null),
-      fetchExpediteMessages().catch(() => []),
-      getIncomeDashboard("month").catch(() => null)
-    ]);
-    recentOrders.value = recentRes?.list ?? [];
-    countInfo.value = recentRes?.countInfo ?? {};
-    todayCount.value = todayRes?.total ?? 0;
-    expediteUnread.value = messages.filter(m => !m.read).length;
-    // 收入失败显 "—"（数据诚实性：失败 ≠ ¥0）
-    monthIncome.value = income
-      ? formatCny(income.summary.systemIncome)
-      : "—";
-    uncoveredGoodsCount.value = income?.uncoveredGoodsCount ?? 0;
+    await refreshQuietly(today);
   } finally {
     loading.value = false;
   }

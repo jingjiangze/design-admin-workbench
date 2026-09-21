@@ -22,12 +22,16 @@ const STATE_PARAM: Record<Exclude<OrderView, "all">, string> = {
   at_risk: "8"
 };
 
-/** 列表查询（6 视图 + 分页 + 关键词 + 日期范围） */
+/** 列表查询（6 视图 + 原系统 Tab state 直传 + 分页 + 关键词 + 日期范围） */
 export async function fetchOrders(params: {
+  /** 收敛视图（state 缺省时生效） */
   view: OrderView;
   page: number;
   pageSize: number;
   keyword?: string;
+  /** 原后台系统 Tab state 枚举（""/"1".."8"/"11"/"12"，[VERIFIED] ORDER_MODEL.md）；
+   *  显式传入时优先于 view（订单页原系统分类模式） */
+  state?: string;
   /** 下单日期范围（yyyy-MM-dd，Real 通道透传服务端过滤；Mock 通道忽略） */
   beginDate?: string;
   endDate?: string;
@@ -38,7 +42,8 @@ export async function fetchOrders(params: {
    *  [VERIFIED] 无 total 字段（total 在 pageInfo），首页聚合真实源 */
   countInfo?: Record<string, number>;
 }> {
-  const state = params.view === "all" ? "" : STATE_PARAM[params.view];
+  const state =
+    params.state ?? (params.view === "all" ? "" : STATE_PARAM[params.view]);
 
   if (!isLegacyRealEnabled()) {
     // Mock 通道：脱敏真实样本 → 同一映射管道（保证映射逻辑被 Mock 数据同样校验）

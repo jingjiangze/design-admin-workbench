@@ -29,9 +29,7 @@ import {
 import type { OrderListItem } from "@/service/types";
 
 /** 构造订单（只填金额解析相关字段） */
-function makeOrder(
-  overrides: Partial<OrderListItem> = {}
-): OrderListItem {
+function makeOrder(overrides: Partial<OrderListItem> = {}): OrderListItem {
   return {
     orderId: "1",
     applyId: "",
@@ -123,7 +121,12 @@ describe("金额三层模型：5 必测 Case（0 ≠ undefined）", () => {
 
 describe("规则匹配优先级", () => {
   const rules = [
-    makeRule({ id: "goods-level", goodsId: "G1", subGoodsId: undefined, amount: 5 }),
+    makeRule({
+      id: "goods-level",
+      goodsId: "G1",
+      subGoodsId: undefined,
+      amount: 5
+    }),
     makeRule({
       id: "exact-level",
       goodsId: "G1",
@@ -156,7 +159,7 @@ describe("规则匹配优先级", () => {
 });
 
 describe("parseLegacyAmount（空值形态 → null）", () => {
-  it('空串/null/undefined/非数字 → null（未定义）', () => {
+  it("空串/null/undefined/非数字 → null（未定义）", () => {
     expect(parseLegacyAmount("")).toBeNull();
     expect(parseLegacyAmount(null)).toBeNull();
     expect(parseLegacyAmount(undefined)).toBeNull();
@@ -229,7 +232,10 @@ describe("pricingRuleStore（内存存储注入）", () => {
     expect(clearRule("G1")).toBe(true);
     expect(listRules()).toHaveLength(0);
     // 删除后订单解析回落 legacy
-    const r = resolveOrderAmount(makeOrder({ legacyAmount: 10, goodsId: "G1" }), []);
+    const r = resolveOrderAmount(
+      makeOrder({ legacyAmount: 10, goodsId: "G1" }),
+      []
+    );
     expect(r.amountSource).toBe("legacy");
     expect(clearRule("G1")).toBe(false); // 不存在的规则删除返回 false
   });
@@ -254,7 +260,12 @@ describe("pricingRuleStore（内存存储注入）", () => {
   });
 
   it("导出 JSON 为最小字段形态", () => {
-    setRule({ goodsId: "G1", subGoodsId: "S1", productName: "PVC名片", amount: 8 });
+    setRule({
+      goodsId: "G1",
+      subGoodsId: "S1",
+      productName: "PVC名片",
+      amount: 8
+    });
     const json = exportRules();
     const rows = JSON.parse(json);
     expect(rows).toEqual([
@@ -265,11 +276,11 @@ describe("pricingRuleStore（内存存储注入）", () => {
   it("导入预览：新增 1 / 覆盖 1 / 跳过 1", () => {
     setRule({ goodsId: "G1", productName: "旧规则", amount: 5 });
     const json = JSON.stringify([
-      { goodsid: "G2", displayName: "新商品", amount: 3 },        // 新增
-      { goodsid: "G1", displayName: "旧规则", amount: 8 },        // 覆盖（5→8）
-      { goodsid: "G1", displayName: "旧规则", amount: 5 },        // 跳过（相同）
-      { goodsid: "", displayName: "非法", amount: 1 },            // 跳过（缺 goodsid）
-      { goodsid: "G3", displayName: "负数", amount: -1 }          // 跳过（非法金额）
+      { goodsid: "G2", displayName: "新商品", amount: 3 }, // 新增
+      { goodsid: "G1", displayName: "旧规则", amount: 8 }, // 覆盖（5→8）
+      { goodsid: "G1", displayName: "旧规则", amount: 5 }, // 跳过（相同）
+      { goodsid: "", displayName: "非法", amount: 1 }, // 跳过（缺 goodsid）
+      { goodsid: "G3", displayName: "负数", amount: -1 } // 跳过（非法金额）
     ]);
     const preview = buildImportPreview(json);
     expect(preview.total).toBe(3);

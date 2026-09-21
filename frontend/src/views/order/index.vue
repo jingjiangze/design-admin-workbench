@@ -3,19 +3,21 @@
     <div class="orders__head">
       <h1 class="orders__title">订单</h1>
       <span v-if="!loading" class="orders__count app-num">{{ total }}</span>
+      <span v-if="prefetching" class="orders__syncing">后台同步中…</span>
     </div>
 
-    <!-- 视图 Tab（§二十二：轻量行内，非后台页签） -->
+    <!-- 原后台系统分类 Tab（2026-09-21 用户指令；docs/ORDER_MODEL.md [VERIFIED]
+         状态枚举表，9=售后旧系统已停用不设 Tab） -->
     <div class="orders__views">
       <button
-        v-for="(label, key) in VIEW_LABEL"
-        :key="key"
+        v-for="t in LEGACY_ORDER_TABS"
+        :key="t.state"
         class="orders__view"
-        :class="{ 'orders__view--active': view === key }"
+        :class="{ 'orders__view--active': tabState === t.state }"
         type="button"
-        @click="switchView(key as OrderView)"
+        @click="switchTab(t.state)"
       >
-        {{ label }}
+        {{ t.label }}
       </button>
     </div>
 
@@ -154,7 +156,7 @@
  * 品类/时间筛选在当前结果上过滤（Real 服务端分页下仅作用于当前页，
  * 全量筛选待 CF-REAL-05 真实搜索升级——诚实标注，不伪造全量能力）
  */
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import {
   ElCheckbox,
@@ -172,8 +174,15 @@ import {
   AppStatus
 } from "@/components/ui";
 import OrderDrawer from "@/components/OrderDrawer/index.vue";
-import { fetchOrders, VIEW_LABEL } from "@/service/order";
-import type { OrderListItem, OrderView } from "@/service/types";
+import { fetchOrders, type OrderListItem } from "@/service/order";
+import { LEGACY_ORDER_TABS } from "@/service/types";
+import {
+  prefetchAllOrders,
+  readOrdersAll,
+  isOrdersAllFresh,
+  filterOrdersByState,
+  paginateOrders
+} from "@/service/order-cache";
 import {
   renderRemindTextBatch,
   type RemindTemplateVars
@@ -184,11 +193,16 @@ defineOptions({ name: "OrderList" });
 const route = useRoute();
 
 const loading = ref(true);
-const view = ref<OrderView>("all");
+/** 原后台系统 Tab state 枚举（"" = 全部订单；docs/ORDER_MODEL.md [VERIFIED]） */
+const tabState = ref("");
 const list = ref<OrderListItem[]>([]);
 const total = ref(0);
 const page = ref(1);
 const pageSize = 30;
+/** 当前渲染是否来自本地缓存过滤（true 时服务端失败不打碎已渲染数据） */
+const localFilterMode = ref(false);
+/** 全量后台拉取中（渐进加载状态） */
+const prefetching = ref(false);
 
 const keywordInput = ref("");
 const keyword = ref("");
@@ -200,29 +214,76 @@ const drawerVisible = ref(false);
 const drawerId = ref<string | null>(null);
 const drawerRow = ref<OrderListItem | null>(null);
 
-// ── 数据加载（打开/查询时请求，非轮询 §五十四） ──
-async function load() {
-  loading.value = true;
+// ── 渐进加载（2026-09-21 用户指令：先拉最近订单，全部订单后台默认拉取） ──
+
+/** 本地缓存快路径渲染；返回是否命中 */
+function renderLocal(): boolean {
+  if (keyword.value) return false; // 搜索走服务端
+  const cached = readOrdersAll();
+  if (!cached?.data?.list?.length) return false;
+  const filtered = filterOrdersByState(cached.data.list, tabState.value);
+  total.value = filtered.length;
+  list.value = paginateOrders(filtered, page.value, pageSize);
+  localFilterMode.value = true;
+  return true;
+}
+
+/** 服务端加载（首屏回退 / 搜索 / 缓存陈旧校准） */
+async function loadServer(opts?: { silent?: boolean }) {
+  if (!opts?.silent) loading.value = true;
   try {
     const res = await fetchOrders({
-      view: view.value,
+      view: "all",
       page: page.value,
       pageSize,
-      keyword: keyword.value || undefined
+      keyword: keyword.value || undefined,
+      state: tabState.value
     });
     list.value = res.list;
     total.value = res.total;
+    localFilterMode.value = false;
   } catch {
-    list.value = [];
-    total.value = 0;
-    ElMessage.error("订单暂时无法加载");
+    // 本地缓存已渲染时不打碎数据（SWR 容错）；否则显式错误
+    if (!localFilterMode.value) {
+      list.value = [];
+      total.value = 0;
+      ElMessage.error("订单暂时无法加载");
+    }
   } finally {
     loading.value = false;
   }
 }
 
-function switchView(v: OrderView) {
-  view.value = v;
+/** 全部订单后台静默拉取：完成后切换本地缓存渲染（切 Tab/翻页即时零请求） */
+async function prefetchQuiet(force = false) {
+  prefetching.value = true;
+  try {
+    const data = await prefetchAllOrders({ force });
+    if (data && !keyword.value) renderLocal();
+  } finally {
+    prefetching.value = false;
+  }
+}
+
+async function load() {
+  const hasLocal = renderLocal();
+  if (hasLocal && isOrdersAllFresh()) {
+    loading.value = false; // fresh 缓存：零请求即时渲染
+    return;
+  }
+  if (hasLocal) {
+    // stale 缓存：先渲染，后台静默刷新（不闪骨架屏）
+    loading.value = false;
+    void prefetchQuiet(false);
+    return;
+  }
+  // 无缓存：先拉最近订单（page1）立即展示，全部订单后台默认拉取
+  await loadServer();
+  void prefetchQuiet(true);
+}
+
+function switchTab(state: string) {
+  tabState.value = state;
   page.value = 1;
   clearSelection();
   void load();
@@ -231,7 +292,8 @@ function switchView(v: OrderView) {
 function onPageChange(p: number) {
   page.value = p;
   clearSelection();
-  void load();
+  // 本地缓存模式翻页即时（缓存分页）；否则服务端请求
+  if (!(localFilterMode.value && renderLocal())) void load();
 }
 
 function applyKeyword() {
@@ -250,7 +312,7 @@ onMounted(() => {
   void load();
 });
 
-// ── 客户端筛选（品类/时间，作用于当前结果集） ──
+// ── 客户端筛选（品类/时间）：本地全量缓存就绪时作用全量，否则当前页 ──
 const displayList = computed(() => {
   let arr = list.value;
   if (categoryFilter.value) {
@@ -277,8 +339,12 @@ const displayList = computed(() => {
 });
 
 const categoryOptions = computed(() => {
+  // 本地全量缓存就绪 → 品类下拉覆盖全量；否则当前结果集
+  const source = localFilterMode.value
+    ? (readOrdersAll()?.data?.list ?? list.value)
+    : list.value;
   const set = new Set<string>();
-  for (const o of list.value) {
+  for (const o of source) {
     const name = o.productName || o.taskType;
     if (name) set.add(name);
   }
@@ -394,6 +460,11 @@ async function bulkRemindText() {
 .orders__count {
   font-size: 13px;
   color: var(--app-text-muted);
+}
+
+.orders__syncing {
+  font-size: 12px;
+  color: var(--app-text-faint);
 }
 
 /* 视图行内 Tab */

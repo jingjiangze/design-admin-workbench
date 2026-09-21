@@ -29,18 +29,25 @@ describe("parseIncomeQuery — 参数白名单", () => {
     expect(q.month).toMatch(/^\d{4}-(0[1-9]|1[0-2])$/);
   });
 
-  it.each(["2026-13", "2026-00", "26-09", "2026/09", "2026-9", "2026-091", "DROP TABLE"])(
-    "month 非法格式 (%s) → 400 BAD_MONTH",
-    bad => {
-      expect(() => parseIncomeQuery(urlOf(`month=${encodeURIComponent(bad)}`))).toThrow(LegacyError);
-      try {
-        parseIncomeQuery(urlOf(`month=${encodeURIComponent(bad)}`));
-      } catch (e) {
-        expect((e as LegacyError).code).toBe("BAD_MONTH");
-        expect((e as LegacyError).status).toBe(400);
-      }
+  it.each([
+    "2026-13",
+    "2026-00",
+    "26-09",
+    "2026/09",
+    "2026-9",
+    "2026-091",
+    "DROP TABLE"
+  ])("month 非法格式 (%s) → 400 BAD_MONTH", bad => {
+    expect(() =>
+      parseIncomeQuery(urlOf(`month=${encodeURIComponent(bad)}`))
+    ).toThrow(LegacyError);
+    try {
+      parseIncomeQuery(urlOf(`month=${encodeURIComponent(bad)}`));
+    } catch (e) {
+      expect((e as LegacyError).code).toBe("BAD_MONTH");
+      expect((e as LegacyError).status).toBe(400);
     }
-  );
+  });
 
   it("range 仅识别 all；其余一律归一为 month", () => {
     expect(parseIncomeQuery(urlOf("range=all")).range).toBe("all");
