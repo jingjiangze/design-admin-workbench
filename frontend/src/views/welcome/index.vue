@@ -3,15 +3,67 @@
     <!-- 主视觉：Search First（§十/§十二：不套卡片） -->
     <section class="home__hero">
       <h1 class="home__title">设计师工作台</h1>
-      <p class="home__subtitle">今天需要处理什么？</p>
+      <p class="home__subtitle">输入订单号，直达交稿记录 / 改价 / 订单详情</p>
       <div class="home__search">
         <AppSearch
-          readonly
+          v-model="query"
           size="lg"
-          placeholder="搜订单号…"
-          @click="openPalette"
+          placeholder="输入完整订单号，如 TT_260908007929"
+          @enter="searchOrder"
         />
       </div>
+      <div v-if="recentQueries.length" class="home__recent">
+        <span class="home__recent-label">最近查询</span>
+        <button
+          v-for="q in recentQueries"
+          :key="q"
+          class="home__recent-item app-mono"
+          type="button"
+          @click="searchRecent(q)"
+        >
+          {{ q }}
+        </button>
+      </div>
+
+      <!-- 直查结果：精确命中直接开详情；多需求/无精确时列候选 -->
+      <div v-if="searching" class="home__searching">
+        <AppSkeleton :rows="2" />
+      </div>
+      <p v-else-if="searchError" class="home__search-warn">
+        {{ searchError }}
+      </p>
+      <template v-else-if="searchDone">
+        <div v-if="candidates.length" class="home__candidates">
+          <p v-if="!exactHit" class="home__search-warn">
+            未找到与输入完全一致的订单号，以下为包含匹配候选
+          </p>
+          <p v-if="candidates.length > 1" class="home__candidates-tip">
+            该订单号关联 {{ candidates.length }} 个需求，点击查看对应详情
+          </p>
+          <button
+            v-for="o in candidates"
+            :key="o.orderId"
+            class="home__candidate"
+            type="button"
+            @click="openOrder(o)"
+          >
+            <span class="app-mono home__order-no">{{ o.orderNo }}</span>
+            <span class="app-mono home__cell-muted">{{ o.orderId }}</span>
+            <span class="home__cell-muted">{{
+              o.productName || o.taskType || "—"
+            }}</span>
+            <span><AppStatus :label="o.stateLabel" /></span>
+            <AppIcon
+              name="arrow-right"
+              :size="15"
+              class="home__attention-arrow"
+            />
+          </button>
+        </div>
+        <p v-else class="home__search-warn">
+          未查到订单号「{{ query.trim() }}」对应的订单
+        </p>
+      </template>
     </section>
 
     <!-- 极简横向统计（§十一：数字+小标题，无卡片边界） -->
@@ -82,7 +134,7 @@
             :key="o.orderId"
             class="home__table-row"
             type="button"
-            @click="goOrders(o.orderNo)"
+            @click="openOrder(o)"
           >
             <span class="app-mono home__order-no">{{ o.orderNo }}</span>
             <span class="home__cell-muted">{{
@@ -97,6 +149,13 @@
         <AppEmpty v-else icon="inbox" text="暂无订单" />
       </template>
     </section>
+
+    <!-- 订单详情 Drawer（首页直查 / 最近订单共用入口） -->
+    <OrderDrawer
+      v-model="drawerVisible"
+      :order-id="drawerId"
+      :order-row="drawerRow"
+    />
   </div>
 </template>
 
@@ -118,7 +177,7 @@
  * 先渲染缓存（毫秒级出数据），后台静默刷新后无缝更新；fresh 60s 内跳过
  * 刷新（旧系统限流友好，避免路由来回切换狂打请求）。
  */
-import { computed, inject, onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import {
   AppIcon,
@@ -130,6 +189,12 @@ import {
 } from "@/components/ui";
 import { fetchOrders, type OrderListItem } from "@/service/order";
 import { fetchExpediteMessages } from "@/service/expedite";
+import {
+  fetchAllOrdersByNo,
+  normalizeOrderNo,
+  pickExactOrders
+} from "@/service/order-history";
+import OrderDrawer from "@/components/OrderDrawer/index.vue";
 import {
   getIncomeDashboard,
   getIncomeSummaryFast,
@@ -145,7 +210,6 @@ import {
 defineOptions({ name: "Welcome" });
 
 const router = useRouter();
-const openPalette = inject<() => void>("openCommandPalette");
 
 const loading = ref(true);
 const recentOrders = ref<OrderListItem[]>([]);
@@ -212,6 +276,83 @@ function goOrders(keyword?: string) {
   router.push(
     keyword ? { path: "/order/index", query: { keyword } } : "/order/index"
   );
+}
+
+// ── 单号直查（HOME-SEARCH 重构：首页即查询入口，命中直接开详情） ──
+
+const query = ref("");
+const searching = ref(false);
+const searchDone = ref(false);
+const searchError = ref("");
+const candidates = ref<OrderListItem[]>([]);
+const exactHit = ref(false);
+
+const drawerVisible = ref(false);
+const drawerId = ref<string | null>(null);
+const drawerRow = ref<OrderListItem | null>(null);
+
+/** 最近查询（仅订单号文本，无 PII；localStorage 上限 6 条） */
+const RECENT_KEY = "home:recent-order-queries";
+const recentQueries = ref<string[]>(loadRecent());
+
+function loadRecent(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    const arr = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(arr) ? arr.filter(s => typeof s === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushRecent(no: string) {
+  const next = [no, ...recentQueries.value.filter(q => q !== no)].slice(0, 6);
+  recentQueries.value = next;
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* 存储满/隐私模式：不影响查询 */
+  }
+}
+
+function searchRecent(no: string) {
+  query.value = no;
+  void searchOrder();
+}
+
+async function searchOrder() {
+  const no = query.value.trim();
+  if (!no) return;
+  searching.value = true;
+  searchDone.value = false;
+  searchError.value = "";
+  candidates.value = [];
+  try {
+    // 分页拉全（含匹配），再精确归属确认（§三/§四）
+    const all = await fetchAllOrdersByNo(no);
+    const normalized = normalizeOrderNo(no);
+    exactHit.value = all.some(
+      o => normalizeOrderNo(o.orderNo ?? "") === normalized
+    );
+    candidates.value = pickExactOrders(all, normalized);
+    pushRecent(no);
+    searchDone.value = true;
+    // 精确命中且唯一需求 → 一步直达详情（§六）
+    if (exactHit.value && candidates.value.length === 1) {
+      openOrder(candidates.value[0]);
+    }
+  } catch (e) {
+    searchError.value = e instanceof Error ? e.message : "查询失败（网络异常）";
+    searchDone.value = true;
+  } finally {
+    searching.value = false;
+  }
+}
+
+function openOrder(o: OrderListItem) {
+  drawerId.value = o.orderId;
+  drawerRow.value = o;
+  drawerVisible.value = true;
 }
 
 // ── SWR：缓存先行 + 后台静默刷新 ──
@@ -366,7 +507,86 @@ function formatCny(n: number): string {
 }
 
 .home__search :deep(.app-search__input--lg) {
+  cursor: text;
+}
+
+/* ── 最近查询 / 直查结果（HOME-SEARCH） ── */
+.home__recent {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--space-3);
+}
+
+.home__recent-label {
+  font-size: 12px;
+  color: var(--app-text-faint);
+}
+
+.home__recent-item {
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--app-text-secondary);
   cursor: pointer;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 999px;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.home__recent-item:hover {
+  color: var(--app-text);
+  border-color: var(--app-border-strong);
+}
+
+.home__searching {
+  width: 100%;
+  max-width: 640px;
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.home__search-warn {
+  margin: var(--space-3) 0 0;
+  font-size: 12.5px;
+  color: var(--app-warning, #b7791f);
+}
+
+.home__candidates {
+  width: 100%;
+  max-width: 640px;
+  margin-top: var(--space-4);
+  text-align: left;
+}
+
+.home__candidates-tip {
+  margin: 0 0 var(--space-1);
+  font-size: 12.5px;
+  color: var(--app-text-muted);
+}
+
+.home__candidate {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 0.8fr 24px;
+  gap: var(--space-3);
+  align-items: center;
+  width: 100%;
+  padding: var(--space-3);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  transition: background-color 140ms ease;
+}
+
+.home__candidate:hover {
+  background: var(--app-surface-hover);
 }
 
 /* ── 统计行：无卡片边界（§十一） ── */

@@ -161,6 +161,22 @@ export async function loadDelivery(
 // ── 同会话内存缓存（短生命周期，仅当前页面会话；不落 localStorage） ──
 const historyCache = new Map<string, OrderHistoryResult>();
 
+/** 最近一次改价（轻量单查，供订单详情 Drawer 内嵌；语义=最新一条 [VERIFIED]） */
+export async function fetchLatestPriceChange(
+  orderNo: string
+): Promise<PriceChangeRecord | null> {
+  const pc = await http.request<{
+    result?: boolean;
+    data?: PriceChangeRecord | null;
+  }>("get", `/api/orders/price-change?orderNo=${encodeURIComponent(orderNo)}`, {
+    timeout: 20000
+  });
+  if (pc?.result === true && pc.data && typeof pc.data === "object") {
+    return pc.data;
+  }
+  return null;
+}
+
 /** 单号 → 完整历史（订单记录 / 交稿记录 / 最近一次改价） */
 export async function fetchOrderHistory(
   orderNo: string

@@ -210,6 +210,110 @@
             </div>
           </div>
         </ElTabPane>
+
+        <!-- 交稿记录（重点历史区：一次或多次全部列出，含每次具体时间） -->
+        <ElTabPane label="交稿" name="delivery">
+          <template v-if="delivery">
+            <p v-if="delivery.status === 'ok'" class="odr-dv-count app-num">
+              共 {{ delivery.rows.length }} 次交稿
+            </p>
+            <p v-else-if="delivery.status === 'no-block'" class="odr-dv-warn">
+              未找到交稿记录区块——可能尚未交稿，或旧系统模板变更
+            </p>
+            <p v-else class="odr-dv-warn">
+              交稿记录读取失败{{
+                delivery.errorMessage ? `：${delivery.errorMessage}` : ""
+              }}
+            </p>
+            <div
+              v-if="delivery.status === 'ok' && delivery.rows.length"
+              class="odr-dv-list"
+            >
+              <div
+                v-for="r in delivery.rows"
+                :key="r.index"
+                class="odr-dv-item"
+              >
+                <div class="odr-table__head odr-dv-head">
+                  <span>交稿时间</span><span>状态</span> <span>定稿</span
+                  ><span>源文件</span><span>凭证</span>
+                </div>
+                <div class="odr-table__row odr-dv-row">
+                  <span class="app-num odr-dv-time">
+                    {{ r.isoTime || r.timeText || "—" }}
+                  </span>
+                  <span>{{ r.status || "—" }}</span>
+                  <span>{{ r.files.final ? "已上传" : "—" }}</span>
+                  <span>{{ r.files.source ? "已上传" : "—" }}</span>
+                  <span>{{ r.files.proof ? "已上传" : "—" }}</span>
+                </div>
+                <p v-if="r.designNos.length" class="odr-dv-designnos">
+                  <span class="odr-dv-designnos-label">
+                    设计单号（{{ r.designNos.length }} 版）
+                  </span>
+                  <span class="app-mono">{{ r.designNos.join("，") }}</span>
+                </p>
+              </div>
+            </div>
+            <AppEmpty
+              v-if="delivery.status === 'ok' && !delivery.rows.length"
+              icon="check"
+              text="该需求尚未交稿"
+            />
+          </template>
+          <p v-else class="odr-dv-warn">交稿记录加载中…</p>
+        </ElTabPane>
+
+        <!-- 最近一次改价（旧系统语义：仅最新一条申请+审核，非全量历史） -->
+        <ElTabPane label="改价" name="price">
+          <div v-if="priceChange" class="odr-kv-list">
+            <div class="odr-kv">
+              <span class="odr-kv__key">改价内容</span>
+              <span class="odr-kv__val">
+                {{ priceChange.oldContent || "—" }}
+                →
+                {{ priceChange.newContent || "—" }}
+              </span>
+            </div>
+            <div class="odr-kv">
+              <span class="odr-kv__key">改价类型</span>
+              <span class="odr-kv__val">{{
+                priceChange.editPriceType || "—"
+              }}</span>
+            </div>
+            <div class="odr-kv">
+              <span class="odr-kv__key">申请时间</span>
+              <span class="odr-kv__val app-num">{{
+                priceChange.applyTime || priceChange.createTime || "—"
+              }}</span>
+            </div>
+            <div class="odr-kv">
+              <span class="odr-kv__key">审核状态</span>
+              <span class="odr-kv__val">{{
+                priceStatusText(priceChange.checkStatus)
+              }}</span>
+            </div>
+            <div class="odr-kv">
+              <span class="odr-kv__key">审核时间 / 人</span>
+              <span class="odr-kv__val app-num">
+                {{ priceChange.auditingTime || "—" }}
+                {{ priceChange.auditingUserName || "" }}
+              </span>
+            </div>
+            <div class="odr-kv">
+              <span class="odr-kv__key">改价理由</span>
+              <span class="odr-kv__val">{{
+                priceChange.notes || priceChange.remark || "—"
+              }}</span>
+            </div>
+          </div>
+          <AppEmpty
+            v-else-if="priceChangeMissing"
+            icon="check"
+            text="暂无改价申请记录"
+          />
+          <p v-else class="odr-dv-warn">改价记录加载中…</p>
+        </ElTabPane>
       </ElTabs>
     </template>
 
@@ -239,6 +343,12 @@ import type { OrderDetail } from "@/service/order-detail-types";
 import type { OrderListItem } from "@/service/types";
 import { findMatchingRule } from "@/service/pricing/amount-resolution";
 import { listRules } from "@/service/pricing/pricing-rule-store";
+import {
+  fetchLatestPriceChange,
+  loadDelivery,
+  type DeliveryGroup,
+  type PriceChangeRecord
+} from "@/service/order-history";
 
 defineOptions({ name: "OrderDrawer" });
 
@@ -255,6 +365,11 @@ const loading = ref(false);
 const detail = ref<OrderDetail | null>(null);
 const loadError = ref("");
 const activeTab = ref("summary");
+
+/** 交稿记录 / 最近一次改价（HOME-SEARCH 重构：详情直接承载完整历史） */
+const delivery = ref<DeliveryGroup | null>(null);
+const priceChange = ref<PriceChangeRecord | null>(null);
+const priceChangeMissing = ref(false);
 
 const orderNo = computed(
   () => detail.value?.identity.ordernum ?? props.orderRow?.orderNo ?? "—"
@@ -310,14 +425,41 @@ async function load() {
   if (!id) return;
   loading.value = true;
   loadError.value = "";
+  delivery.value = null;
+  priceChange.value = null;
+  priceChangeMissing.value = false;
   try {
-    detail.value = await fetchOrderDetail({ needsid: id });
+    // 详情 + 交稿记录 + 最近一次改价并行；历史两路失败容忍（不拖垮详情）
+    const [d, dv, pc] = await Promise.all([
+      fetchOrderDetail({ needsid: id }),
+      loadDelivery(id, props.orderRow?.orderNo ?? "").catch(() => null),
+      fetchLatestPriceChange(props.orderRow?.orderNo ?? "")
+        .then(r => {
+          if (r === null) priceChangeMissing.value = true;
+          return r;
+        })
+        .catch(() => {
+          priceChangeMissing.value = true;
+          return null;
+        })
+    ]);
+    detail.value = d;
+    delivery.value = dv;
+    priceChange.value = pc;
   } catch {
     loadError.value = "load-failed";
     detail.value = null;
   } finally {
     loading.value = false;
   }
+}
+
+/** 改价审核状态文案（0=审核中/1=通过/其他=不通过） */
+function priceStatusText(status: number | undefined): string {
+  if (status === undefined || status === null) return "—";
+  if (status === 0) return "审核中";
+  if (status === 1) return "审核通过";
+  return "审核不通过";
 }
 
 async function copyOrderNo() {
@@ -556,5 +698,57 @@ function fmtTime(t: string): string {
 /* Tabs 内容导航化（§二十四：像内容导航，不像后台） */
 .odr-tabs :deep(.el-tabs__header) {
   margin-bottom: var(--space-6);
+}
+
+/* 交稿记录（HOME-SEARCH：详情承载历史） */
+.odr-dv-count {
+  margin: 0 0 var(--space-2);
+  font-size: 12.5px;
+  color: var(--app-text-muted);
+}
+
+.odr-dv-warn {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--app-warning, #b7791f);
+}
+
+.odr-dv-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.odr-dv-item {
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.odr-dv-item:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.odr-dv-head,
+.odr-dv-row {
+  grid-template-columns: 1.4fr 1fr 0.7fr 0.7fr 0.7fr;
+}
+
+.odr-dv-time {
+  font-weight: 500;
+  color: var(--app-text);
+}
+
+.odr-dv-designnos {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  font-size: 12px;
+  color: var(--app-text-muted);
+  word-break: break-all;
+}
+
+.odr-dv-designnos-label {
+  flex-shrink: 0;
 }
 </style>
